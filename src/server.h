@@ -727,6 +727,7 @@ typedef struct client {
     int fd;                 /* Client socket. */
     redisDb *db;            /* Pointer to currently SELECTed DB. */
     robj *name;             /* As set by CLIENT SETNAME. */
+    // 输入缓冲区（大小动态变化 但不会超过1GB,否则服务器会关闭这个客户端）
     sds querybuf;           /* Buffer we use to accumulate client queries. */
     size_t qb_pos;          /* The position we have read in querybuf. */
     sds pending_querybuf;   /* If this client is flagged as master, this buffer
@@ -734,20 +735,29 @@ typedef struct client {
                                replication stream that we are receiving from
                                the master. */
     size_t querybuf_peak;   /* Recent (100ms or more) peak of querybuf size. */
+    // 命令参数的个数(通过解析querybuf获取)
     int argc;               /* Num of arguments of current command. */
+    // 命令参数(通过解析querybuf获取) ["SET","key","value"] 数组
     robj **argv;            /* Arguments of current command. */
+    // argv[0]映射的redisCommand指针
     struct redisCommand *cmd, *lastcmd;  /* Last command executed. */
     int reqtype;            /* Request protocol type: PROTO_REQ_* */
     int multibulklen;       /* Number of multi bulk arguments left to read. */
     long bulklen;           /* Length of bulk argument in multi bulk request. */
+    // 链表 输出缓冲区
     list *reply;            /* List of reply objects to send to the client. */
     unsigned long long reply_bytes; /* Tot bytes of objects in reply list. */
     size_t sentlen;         /* Amount of bytes already sent in the current
                                buffer or object being sent. */
+    // 创建客户端的时间
     time_t ctime;           /* Client creation time. */
+    // 客户端和服务端最后一次交互的时间
     time_t lastinteraction; /* Time of the last interaction, used for timeout */
+    // 输出缓冲区第一次到达软性(soft limit)限制的时间
     time_t obuf_soft_limit_reached_time;
+    // 记录了客户端的角色，以及客户端目前所处的状态
     int flags;              /* Client flags: CLIENT_* macros. */
+    // 客户端是否通过了身份认证；0表示未认证，1表示认证通过
     int authenticated;      /* When requirepass is non-NULL. */
     int replstate;          /* Replication state if this is a slave. */
     int repl_put_online_on_ack; /* Install slave write handler on first ACK. */
@@ -777,7 +787,9 @@ typedef struct client {
     listNode *client_list_node; /* list node in client list */
 
     /* Response buffer */
+    // 记录buf数组目前已经使用了的字节数
     int bufpos;
+    // 固定16k的输出缓冲区
     char buf[PROTO_REPLY_CHUNK_BYTES];
 } client;
 
@@ -1263,6 +1275,7 @@ struct redisServer {
     int cluster_config_file_lock_fd;   /* cluster config fd, will be flock */
     /* Scripting */
     lua_State *lua; /* The Lua interpreter. We use just one for all clients */
+    // 负责执行Lua脚本的伪客户端
     client *lua_client;   /* The "fake client" to query Redis from Lua */
     client *lua_caller;   /* The client running EVAL right now, or NULL */
     dict *lua_scripts;         /* A dictionary of SHA1 -> Lua scripts */
@@ -1313,7 +1326,9 @@ typedef void redisCommandProc(client *c);
 typedef int *redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
 struct redisCommand {
     char *name;
+    // 函数指针 指向命令的实现函数
     redisCommandProc *proc;
+    // 命令参数的个数 用于检查命令请求的格式是否正确
     int arity;
     char *sflags; /* Flags as string representation, one char per flag. */
     int flags;    /* The actual flags, obtained from the 'sflags' field. */
@@ -1324,6 +1339,8 @@ struct redisCommand {
     int firstkey; /* The first argument that's a key (0 = no keys) */
     int lastkey;  /* The last argument that's a key */
     int keystep;  /* The step between first and last key */
+    // calls:服务器总共执行了多少次这个命令
+    // microseconds:服务器执行这个命令所耗费的总时长
     long long microseconds, calls;
 };
 
