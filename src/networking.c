@@ -118,6 +118,7 @@ client *createClient(connection *conn) {
         connEnableTcpNoDelay(conn);
         if (server.tcpkeepalive)
             connKeepAlive(conn,server.tcpkeepalive);
+        // 设置当前socket可读事件的回调函数readQueryFromClient
         connSetReadHandler(conn, readQueryFromClient);
         connSetPrivateData(conn, c);
     }
@@ -2029,8 +2030,10 @@ void processInputBuffer(client *c) {
              * as one that needs to process the command. */
             // 判断 client 是否具有 CLIENT_PENDING_READ 标识，如果是处于多线程 I/O 的模式下，
             // 那么此前已经在 readQueryFromClient -> postponeClientRead 中为 client 打上该标识，
-            // 则立刻跳出循环结束，此时第一条命令已经解析完成，但是不执行命令。
+            // 则立刻跳出循环结束，此时第一条命令已经解析完成，但是不执行命令
+            // 由于不能执行命令所以解析完第一条命令就得退出循环，如果后面还有命令需要main线程在处理这个socket的时候进行解析执行
             if (c->flags & CLIENT_PENDING_READ) {
+                // 加上CLIENT_PENDING_COMMAND标识
                 c->flags |= CLIENT_PENDING_COMMAND;
                 break;
             }
@@ -2092,6 +2095,7 @@ void readQueryFromClient(connection *conn) {
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+    // 从socket中读取数据到querybuf
     nread = connRead(c->conn, c->querybuf+qblen, readlen);
     if (nread == -1) {
         if (connGetState(conn) == CONN_STATE_CONNECTED) {
@@ -3422,8 +3426,10 @@ int handleClientsWithPendingReadsUsingThreads(void) {
     // 设置当前 I/O 操作为读取操作，给每个 I/O 线程的计数器设置分配的任务数量，
     // 让 I/O 线程可以开始工作：只读取和解析命令，不执行。
     io_threads_op = IO_THREADS_OP_READ;
+    // 从1 开始的 0的是主线程自己
     for (int j = 1; j < server.io_threads_num; j++) {
         int count = listLength(io_threads_list[j]);
+        // 给每个 I/O 线程的计数器设置分配的任务数量
         io_threads_pending[j] = count;
     }
 
@@ -3453,6 +3459,7 @@ int handleClientsWithPendingReadsUsingThreads(void) {
     while(listLength(server.clients_pending_read)) {
         ln = listFirst(server.clients_pending_read);
         client *c = listNodeValue(ln);
+        // 去除CLIENT_PENDING_READ标识
         c->flags &= ~CLIENT_PENDING_READ;
         listDelNode(server.clients_pending_read,ln);
         /* Clients can become paused while executing the queued commands,
@@ -3461,7 +3468,7 @@ int handleClientsWithPendingReadsUsingThreads(void) {
          * later when clients are unpaused and we re-queue all clients. */
         if (clientsArePaused()) continue;
 
-        // client 的第一条命令已经被解析好了，直接尝试执行。
+        // client 的第一条命令已经被解析好了，直接尝试执行
         if (processPendingCommandsAndResetClient(c) == C_ERR) {
             /* If the client is no longer valid, we avoid
              * processing the client later. So we just go
