@@ -95,6 +95,7 @@ client *createClient(int fd) {
         anetEnableTcpNoDelay(NULL,fd);
         if (server.tcpkeepalive)
             anetKeepAlive(NULL,fd,server.tcpkeepalive);
+        // 为当前客户端注册AE_READABLE事件，回调函数为readQueryFromClient
         if (aeCreateFileEvent(server.el,fd,AE_READABLE,
             readQueryFromClient, c) == AE_ERR)
         {
@@ -1547,8 +1548,12 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 
     qblen = sdslen(c->querybuf);
+    // 记录峰值
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
+    // 扩容querybuf
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+    // 读取数据到查询缓冲区querybuf,追加到querybuf后面
+    // c->querybuf + qblen 是一个指针运算，表示从 c->querybuf 的起始地址偏移 qblen 个字节的位置，也就是当前查询缓冲区末尾的下一个位置
     nread = read(fd, c->querybuf+qblen, readlen);
     if (nread == -1) {
         if (errno == EAGAIN) {

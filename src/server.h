@@ -734,6 +734,7 @@ typedef struct client {
                                represents the yet not applied portion of the
                                replication stream that we are receiving from
                                the master. */
+    // querybuf的峰值
     size_t querybuf_peak;   /* Recent (100ms or more) peak of querybuf size. */
     // 命令参数的个数(通过解析querybuf获取)
     int argc;               /* Num of arguments of current command. */

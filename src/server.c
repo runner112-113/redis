@@ -1424,6 +1424,8 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
     flushAppendOnlyFile(0);
 
     /* Handle writes with pending output buffers. */
+    // 在此处为客户端的fd添加上了AE_WRITABLE事件 以及回调函数sendReplyToClient
+    // 数据写出
     handleClientsWithPendingWrites();
 
     /* Before we are going to sleep, let the threads access the dataset by
