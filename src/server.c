@@ -1545,16 +1545,22 @@ void initServerConfig(void) {
     pthread_mutex_init(&server.unixtime_mutex,NULL);
 
     updateCachedTime(1);
+    // 设置服务器的运行id
     getRandomHexChars(server.runid,CONFIG_RUN_ID_SIZE);
+    // 为运行id加上结尾字符
     server.runid[CONFIG_RUN_ID_SIZE] = '\0';
     changeReplicationId();
     clearReplicationId2();
     server.timezone = getTimeZone(); /* Initialized by tzset(). */
+    // 设置默认的配置文件路径
     server.configfile = NULL;
     server.executable = NULL;
+    // 设置默认的服务器评率
     server.hz = server.config_hz = CONFIG_DEFAULT_HZ;
     server.dynamic_hz = CONFIG_DEFAULT_DYNAMIC_HZ;
+    // 设置服务器的运行架构
     server.arch_bits = (sizeof(long) == 8) ? 64 : 32;
+    // 设置默认的服务端口号 6379
     server.port = CONFIG_DEFAULT_SERVER_PORT;
     server.tcp_backlog = CONFIG_DEFAULT_TCP_BACKLOG;
     server.bindaddr_count = 0;
@@ -1656,6 +1662,7 @@ void initServerConfig(void) {
     server.always_show_logo = CONFIG_DEFAULT_ALWAYS_SHOW_LOGO;
     server.lua_time_limit = LUA_SCRIPT_TIME_LIMIT;
 
+    // 设置服务器的LRU时钟
     unsigned int lruclock = getLRUClock();
     atomicSet(server.lruclock,lruclock);
     resetServerSaveParams();
@@ -1712,6 +1719,7 @@ void initServerConfig(void) {
     /* Command table -- we initiialize it here as it is part of the
      * initial configuration, since command names may be changed via
      * redis.conf using the rename-command directive. */
+    // 创建命令表
     server.commands = dictCreate(&commandTableDictType,NULL);
     server.orig_commands = dictCreate(&commandTableDictType,NULL);
     populateCommandTable();
@@ -2039,6 +2047,7 @@ void initServer(void) {
 
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
+    // 为服务器设置进程信号处理器
     setupSignalHandlers();
 
     if (server.syslog_enabled) {
@@ -2064,6 +2073,7 @@ void initServer(void) {
     server.clients_paused = 0;
     server.system_memory_size = zmalloc_get_memory_size();
 
+    // 创建常用的共享对象
     createSharedObjects();
     adjustOpenFilesLimit();
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
@@ -2076,6 +2086,7 @@ void initServer(void) {
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
     /* Open the TCP listening socket for the user commands. */
+    // 打开服务器的监听端口
     if (server.port != 0 &&
         listenToPort(server.port,server.ipfd,&server.ipfd_count) == C_ERR)
         exit(1);
@@ -2148,6 +2159,7 @@ void initServer(void) {
     /* Create the timer callback, this is our way to process many background
      * operations incrementally, like clients timeout, eviction of unaccessed
      * expired keys and so forth. */
+    // 为serverCron函数创建时间事件，等待服务器正式运行的时候执行serverCron函数
     if (aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
         serverPanic("Can't create event loop timers.");
         exit(1);
@@ -2156,6 +2168,7 @@ void initServer(void) {
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
     for (j = 0; j < server.ipfd_count; j++) {
+        // 为套接字关联链接应答事件处理器acceptTcpHandler
         if (aeCreateFileEvent(server.el, server.ipfd[j], AE_READABLE,
             acceptTcpHandler,NULL) == AE_ERR)
             {
@@ -2210,6 +2223,7 @@ void initServer(void) {
  * Thread Local Storage initialization collides with dlopen call.
  * see: https://sourceware.org/bugzilla/show_bug.cgi?id=19329 */
 void InitServerLast() {
+    // 初始化服务器后台I/O模块（BIO）
     bioInit();
     server.initial_memory_usage = zmalloc_used_memory();
 }
@@ -4267,6 +4281,7 @@ int main(int argc, char **argv) {
     getRandomHexChars(hashseed,sizeof(hashseed));
     dictSetHashFunctionSeed((uint8_t*)hashseed);
     server.sentinel_mode = checkForSentinelMode(argc,argv);
+    // 初始化服务器状态结构
     initServerConfig();
     moduleInitModulesSystem();
 
@@ -4315,6 +4330,7 @@ int main(int argc, char **argv) {
         }
 
         /* First argument is the config file name? */
+        // 参数指定的是配置文件名称？
         if (argv[j][0] != '-' || argv[j][1] != '-') {
             configfile = argv[j];
             server.configfile = getAbsolutePath(configfile);
@@ -4355,6 +4371,7 @@ int main(int argc, char **argv) {
             exit(1);
         }
         resetServerSaveParams();
+        // 从配置文件加载配置（载入配置选项）
         loadServerConfig(configfile,options);
         sdsfree(options);
     }
@@ -4378,6 +4395,7 @@ int main(int argc, char **argv) {
     int background = server.daemonize && !server.supervised;
     if (background) daemonize();
 
+    // 初始化数据结构
     initServer();
     if (background || server.pidfile) createPidFile();
     redisSetProcTitle(argv[0]);
@@ -4408,6 +4426,7 @@ int main(int argc, char **argv) {
     #endif /* __linux__ */
         moduleLoadFromQueue();
         InitServerLast();
+        // load RDB or AOF file in memory
         loadDataFromDisk();
         if (server.cluster_enabled) {
             if (verifyClusterConfigWithData() == C_ERR) {
@@ -4433,6 +4452,7 @@ int main(int argc, char **argv) {
 
     aeSetBeforeSleepProc(server.el,beforeSleep);
     aeSetAfterSleepProc(server.el,afterSleep);
+    // 执行事件循环
     aeMain(server.el);
     aeDeleteEventLoop(server.el);
     return 0;
