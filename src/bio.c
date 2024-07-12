@@ -117,7 +117,13 @@ void bioInit(void) {
 
     /* Ready to spawn our threads. We use the single argument the thread
      * function accepts in order to pass the job ID the thread is
-     * responsible of. */
+     * responsible of.
+     * 分别创建了处理下面事件的三个线程：
+     * BIO_CLOSE_FILE    0 ( Deferred close(2) syscall. ) 关闭文件描述符close(2)系统调用
+     * BIO_AOF_FSYNC     1 ( Deferred AOF fsync. ) AOF磁盘同步fsync
+     * BIO_LAZY_FREE     2 (Deferred objects freeing. ) 大键bigkey惰性删除
+     * */
+
     for (j = 0; j < BIO_NUM_OPS; j++) {
         void *arg = (void*)(unsigned long) j;
         if (pthread_create(&thread,&attr,bioProcessBackgroundJobs,arg) != 0) {

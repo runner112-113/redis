@@ -3053,6 +3053,7 @@ void initServer(void) {
  * Thread Local Storage initialization collides with dlopen call.
  * see: https://sourceware.org/bugzilla/show_bug.cgi?id=19329 */
 void InitServerLast() {
+    // 初始化后台线程
     bioInit();
     // 初始化 I/O 多线程并启动
     initThreadedIO();
