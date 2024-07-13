@@ -500,6 +500,7 @@ try_fsync:
         /* redis_fsync is defined as fdatasync() for Linux in order to avoid
          * flushing metadata. */
         latencyStartMonitor(latency);
+        // 刷盘
         redis_fsync(server.aof_fd); /* Let's try to get this data on the disk */
         latencyEndMonitor(latency);
         latencyAddSampleIfNeeded("aof-fsync-always",latency);
@@ -508,6 +509,7 @@ try_fsync:
     } else if ((server.aof_fsync == AOF_FSYNC_EVERYSEC &&
                 server.unixtime > server.aof_last_fsync)) {
         if (!sync_in_progress) {
+            // 后台线程专门执行fsync
             aof_background_fsync(server.aof_fd);
             server.aof_fsync_offset = server.aof_current_size;
         }
@@ -724,11 +726,14 @@ int loadAppendOnlyFile(char *filename) {
      * to the same file we're about to read. */
     server.aof_state = AOF_OFF;
 
+    // 创建伪客户端fakeClient(fd=-1)
+    // 因为Redis的命令只能在客户端上下文执行
     fakeClient = createFakeClient();
     startLoading(fp);
 
     /* Check if this AOF file has an RDB preamble. In that case we need to
      * load the RDB file and later continue loading the AOF tail. */
+    // 处理混合使用的情况 aof重写的时候会以rdb的格式写在前面
     char sig[5]; /* "REDIS" */
     if (fread(sig,1,5,fp) != 5 || memcmp(sig,"REDIS",5) != 0) {
         /* No RDB preamble, seek back at 0 offset. */

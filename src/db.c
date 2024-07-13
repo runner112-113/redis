@@ -221,6 +221,7 @@ void setKey(redisDb *db, robj *key, robj *val) {
     }
     incrRefCount(val);
     removeExpire(db,key);
+    // 告知watch的key已经修改 为flgs加上CLIENT_DIRTY_CAS
     signalModifiedKey(db,key);
 }
 
@@ -1183,6 +1184,7 @@ int keyIsExpired(redisDb *db, robj *key) {
  *
  * The return value of the function is 0 if the key is still valid,
  * otherwise the function returns 1 if the key is expired. */
+// 惰性删除
 int expireIfNeeded(redisDb *db, robj *key) {
     if (!keyIsExpired(db,key)) return 0;
 

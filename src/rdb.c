@@ -1313,6 +1313,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     }
 
     serverLog(LL_NOTICE,"DB saved on disk");
+    // 重置dirty
     server.dirty = 0;
     server.lastsave = time(NULL);
     server.lastbgsave_status = C_OK;
@@ -1329,23 +1330,28 @@ int rdbSaveBackground(char *filename, rdbSaveInfo *rsi) {
     pid_t childpid;
     long long start;
 
+    // 检查是否已有子进程在进行AOF或RDB操作
     if (server.aof_child_pid != -1 || server.rdb_child_pid != -1) return C_ERR;
 
+    // 记录当前的脏数据计数和尝试进行bgsave的时间
     server.dirty_before_bgsave = server.dirty;
     server.lastbgsave_try = time(NULL);
     openChildInfoPipe();
 
     start = ustime();
+    // fork子进程
     if ((childpid = fork()) == 0) {
         int retval;
 
         /* Child */
         closeClildUnusedResourceAfterFork();
         redisSetProcTitle("redis-rdb-bgsave");
+        // 子进程负责创建RDB文件
         retval = rdbSave(filename,rsi);
         if (retval == C_OK) {
             size_t private_dirty = zmalloc_get_private_dirty(-1);
 
+            // 如果有写时复制（copy-on-write）产生的脏页，记录日志
             if (private_dirty) {
                 serverLog(LL_NOTICE,
                     "RDB: %zu MB of memory used by copy-on-write",
@@ -1355,9 +1361,11 @@ int rdbSaveBackground(char *filename, rdbSaveInfo *rsi) {
             server.child_info_data.cow_size = private_dirty;
             sendChildInfo(CHILD_INFO_TYPE_RDB);
         }
+        // 子进程退出，返回结果
         exitFromChild((retval == C_OK) ? 0 : 1);
     } else {
         /* Parent */
+        // 父进程部分
         server.stat_fork_time = ustime()-start;
         server.stat_fork_rate = (double) zmalloc_used_memory() * 1000000 / server.stat_fork_time / (1024*1024*1024); /* GB per second. */
         latencyAddSampleIfNeeded("fork",server.stat_fork_time/1000);
@@ -1917,6 +1925,7 @@ int rdbLoadRio(rio *rdb, rdbSaveInfo *rsi, int loading_aof) {
     rdb->max_processing_chunk = server.loading_process_events_interval_bytes;
     if (rioRead(rdb,buf,9) == 0) goto eoferr;
     buf[9] = '\0';
+    // 开头是5字节的REDIS常量
     if (memcmp(buf,"REDIS",5) != 0) {
         serverLog(LL_WARNING,"Wrong signature trying to load DB from file");
         errno = EINVAL;
@@ -1964,11 +1973,14 @@ int rdbLoadRio(rio *rdb, rdbSaveInfo *rsi, int loading_aof) {
             if ((qword = rdbLoadLen(rdb,NULL)) == RDB_LENERR) goto eoferr;
             lru_idle = qword;
             continue; /* Read next opcode. */
+            // EOF 表示数据库数据已经载入完成 跳出循环
         } else if (type == RDB_OPCODE_EOF) {
             /* EOF: End of file, exit the main loop. */
             break;
+            // SELECTDB 的接下来一个是数据库号码dbid
         } else if (type == RDB_OPCODE_SELECTDB) {
             /* SELECTDB: Select the specified database. */
+            // 获取当前载入的库id
             if ((dbid = rdbLoadLen(rdb,NULL)) == RDB_LENERR) goto eoferr;
             if (dbid >= (unsigned)server.dbnum) {
                 serverLog(LL_WARNING,
@@ -2119,6 +2131,7 @@ int rdbLoadRio(rio *rdb, rdbSaveInfo *rsi, int loading_aof) {
         lru_idle = -1;
     }
     /* Verify the checksum if RDB version is >= 5 */
+    // 最后是校验和checksum
     if (rdbver >= 5) {
         uint64_t cksum, expected = rdb->cksum;
 

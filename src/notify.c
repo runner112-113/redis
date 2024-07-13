@@ -107,18 +107,21 @@ void notifyKeyspaceEvent(int type, char *event, robj *key, int dbid) {
      moduleNotifyKeyspaceEvent(type, event, key, dbid);
     
     /* If notifications for this class of events are off, return ASAP. */
+    // 如果给定的通知不是服务器允许发送的通知，那么直接返回
     if (!(server.notify_keyspace_events & type)) return;
 
     eventobj = createStringObject(event,strlen(event));
 
     /* __keyspace@<db>__:<key> <event> notifications. */
     if (server.notify_keyspace_events & NOTIFY_KEYSPACE) {
+        // 构建频道名称 __keyspace@<db>__:<event>
         chan = sdsnewlen("__keyspace@",11);
         len = ll2string(buf,sizeof(buf),dbid);
         chan = sdscatlen(chan, buf, len);
         chan = sdscatlen(chan, "__:", 3);
         chan = sdscatsds(chan, key->ptr);
         chanobj = createObject(OBJ_STRING, chan);
+        // 发送通知
         pubsubPublishMessage(chanobj, eventobj);
         decrRefCount(chanobj);
     }
