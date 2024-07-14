@@ -386,6 +386,7 @@ void flushAppendOnlyFile(int force) {
      * or alike */
 
     latencyStartMonitor(latency);
+    // 将aof_buf写入到文件aof_fd
     nwritten = aofWrite(server.aof_fd,server.aof_buf,sdslen(server.aof_buf));
     latencyEndMonitor(latency);
     /* We want to capture different events for delayed writes:
@@ -491,6 +492,7 @@ void flushAppendOnlyFile(int force) {
 try_fsync:
     /* Don't fsync if no-appendfsync-on-rewrite is set to yes and there are
      * children doing I/O in the background. */
+    // 如果配置了 no-appendfsync-on-rewrite 并且有子进程在后台执行 I/O，则不进行 fsync
     if (server.aof_no_fsync_on_rewrite &&
         (server.aof_child_pid != -1 || server.rdb_child_pid != -1))
             return;
@@ -1319,6 +1321,7 @@ int rewriteAppendOnlyFileRio(rio *aof) {
         if (rioWriteBulkLongLong(aof,j) == 0) goto werr;
 
         /* Iterate this DB writing every entry */
+        // 遍历数据库处理每个key
         while((de = dictNext(di)) != NULL) {
             sds keystr;
             robj key, *o;

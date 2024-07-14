@@ -1153,10 +1153,14 @@ int rdbSaveRio(rio *rdb, int *error, int flags, rdbSaveInfo *rsi) {
     if (server.rdb_checksum)
         rdb->update_cksum = rioGenericUpdateChecksum;
     snprintf(magic,sizeof(magic),"REDIS%04d",RDB_VERSION);
+    // 将REDIS以及版本后写入RDB文件
     if (rdbWriteRaw(rdb,magic,9) == -1) goto werr;
+    // 将辅助信息字段rdbSaveInfo保存到 RDB 文件
     if (rdbSaveInfoAuxFields(rdb,flags,rsi) == -1) goto werr;
+    // 保存模块的辅助数据
     if (rdbSaveModulesAux(rdb, REDISMODULE_AUX_BEFORE_RDB) == -1) goto werr;
 
+    // 遍历整个数据库进行备份
     for (j = 0; j < server.dbnum; j++) {
         redisDb *db = server.db+j;
         dict *d = db->dict;
@@ -1220,10 +1224,12 @@ int rdbSaveRio(rio *rdb, int *error, int flags, rdbSaveInfo *rsi) {
     if (rdbSaveModulesAux(rdb, REDISMODULE_AUX_AFTER_RDB) == -1) goto werr;
 
     /* EOF opcode */
+    // 写入EOF
     if (rdbSaveType(rdb,RDB_OPCODE_EOF) == -1) goto werr;
 
     /* CRC64 checksum. It will be zero if checksum computation is disabled, the
      * loading code skips the check in this case. */
+    // 写入校验和
     cksum = rdb->cksum;
     memrev64ifbe(&cksum);
     if (rioWrite(rdb,&cksum,8) == 0) goto werr;
@@ -1270,6 +1276,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     int error = 0;
 
     snprintf(tmpfile,256,"temp-%d.rdb", (int) getpid());
+    // 打开临时文件
     fp = fopen(tmpfile,"w");
     if (!fp) {
         char *cwdp = getcwd(cwd,MAXPATHLEN);
@@ -1293,12 +1300,16 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     }
 
     /* Make sure data will not remain on the OS's output buffers */
+    // 确保写入磁盘fsync
+    // 确保所有缓冲区中的数据都写入到文件中，而不仅仅是在内存中暂存
     if (fflush(fp) == EOF) goto werr;
+    // 确保数据实际写入到磁盘，而不仅仅是操作系统的缓存
     if (fsync(fileno(fp)) == -1) goto werr;
     if (fclose(fp) == EOF) goto werr;
 
     /* Use RENAME to make sure the DB file is changed atomically only
      * if the generate DB file is ok. */
+    // 原子的修改文件
     if (rename(tmpfile,filename) == -1) {
         char *cwdp = getcwd(cwd,MAXPATHLEN);
         serverLog(LL_WARNING,
@@ -1315,6 +1326,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     serverLog(LL_NOTICE,"DB saved on disk");
     // 重置dirty
     server.dirty = 0;
+    // 记录lastsave
     server.lastsave = time(NULL);
     server.lastbgsave_status = C_OK;
     return C_OK;
@@ -2501,6 +2513,7 @@ void bgsaveCommand(client *c) {
 
     /* The SCHEDULE option changes the behavior of BGSAVE when an AOF rewrite
      * is in progress. Instead of returning an error a BGSAVE gets scheduled. */
+    // BGSAVE [SCHEDULE]
     if (c->argc > 1) {
         if (c->argc == 2 && !strcasecmp(c->argv[1]->ptr,"schedule")) {
             schedule = 1;
@@ -2513,10 +2526,12 @@ void bgsaveCommand(client *c) {
     rdbSaveInfo rsi, *rsiptr;
     rsiptr = rdbPopulateSaveInfo(&rsi);
 
+    // 有在运行的BGSAVE，直接报错
     if (server.rdb_child_pid != -1) {
         addReplyError(c,"Background save already in progress");
     } else if (server.aof_child_pid != -1) {
         if (schedule) {
+            // 标记rdb_bgsave_scheduled 当BGAOFREWRITE完成后下一次调度serverCorn的时候会执行BGSAVE逻辑
             server.rdb_bgsave_scheduled = 1;
             addReplyStatus(c,"Background saving scheduled");
         } else {
@@ -2525,6 +2540,7 @@ void bgsaveCommand(client *c) {
                 "Use BGSAVE SCHEDULE in order to schedule a BGSAVE whenever "
                 "possible.");
         }
+        // BGSAVE的处理
     } else if (rdbSaveBackground(server.rdb_filename,rsiptr) == C_OK) {
         addReplyStatus(c,"Background saving started");
     } else {

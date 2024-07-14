@@ -1263,6 +1263,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
                 backgroundSaveDoneHandler(exitcode,bysignal);
                 if (!bysignal && exitcode == 0) receiveChildInfo();
             } else if (pid == server.aof_child_pid) {
+                // 等待接受子进程的exitCode和signal
                 backgroundRewriteDoneHandler(exitcode,bysignal);
                 if (!bysignal && exitcode == 0) receiveChildInfo();
             } else {

@@ -1093,8 +1093,12 @@ struct redisServer {
     int aof_state;                  /* AOF_(ON|OFF|WAIT_REWRITE) */
     int aof_fsync;                  /* Kind of fsync() policy */
     char *aof_filename;             /* Name of the AOF file */
+    // 该选项指定在 AOF 重写期间是否继续进行 fsync 操作。
+    // 如果设置为 yes，则重写期间不会进行 fsync，可以提高性能，但可能会增加数据丢失的风险。
     int aof_no_fsync_on_rewrite;    /* Don't fsync if a rewrite is in prog. */
+    // 指定触发 AOF 重写的条件，当 AOF 文件大小增长到上次重写后的百分比时触发重写。
     int aof_rewrite_perc;           /* Rewrite AOF if % growth is > M and... */
+    // 指定触发 AOF 重写的最小文件大小，当 AOF 文件大小小于该值时不会触发重写。
     off_t aof_rewrite_min_size;     /* the AOF file is at least N bytes. */
     off_t aof_rewrite_base_size;    /* AOF size on latest startup or rewrite. */
     off_t aof_current_size;         /* AOF current size. */
@@ -1115,8 +1119,10 @@ struct redisServer {
     int rdb_save_incremental_fsync;   /* fsync incrementally while rdb saving? */
     int aof_last_write_status;      /* C_OK or C_ERR */
     int aof_last_write_errno;       /* Valid if aof_last_write_status is ERR */
+    // 该选项指定在 Redis 启动时是否加载被截断的 AOF 文件。如果设置为 yes，Redis 会尝试加载被截断的 AOF 文件。
     int aof_load_truncated;         /* Don't stop on unexpected AOF EOF. */
     // 开启RDB、AOF混合模式
+    // 该选项指定 AOF 文件是否使用 RDB 格式的前导部分，以提高加载速度和文件压缩效率。
     int aof_use_rdb_preamble;       /* Use RDB preamble on AOF rewrites. */
     /* AOF pipes used to communicate between parent and child during rewrite. */
     int aof_pipe_write_data_to_child;
