@@ -583,6 +583,14 @@ sds catAppendOnlyExpireAtCommand(sds buf, struct redisCommand *cmd, robj *key, r
     return buf;
 }
 
+/**
+ * 作为整个aof写入的入口  首先要清楚触发该方法的时机是什么 redis在执行一些command时，如果该命令应当被追加到aof中且此时aof处于开启状态
+ * 就会自动的将数据追加到aof中
+ * @param cmd
+ * @param dictid
+ * @param argv
+ * @param argc
+ */
 void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int argc) {
     sds buf = sdsempty();
     robj *tmpargv[3];
@@ -598,6 +606,7 @@ void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int a
         server.aof_selected_db = dictid;
     }
 
+    // 这里根据command的类型生成不同的数据体
     if (cmd->proc == expireCommand || cmd->proc == pexpireCommand ||
         cmd->proc == expireatCommand) {
         /* Translate EXPIRE/PEXPIRE/EXPIREAT into PEXPIREAT */
@@ -641,6 +650,7 @@ void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int a
     /* Append to the AOF buffer. This will be flushed on disk just before
      * of re-entering the event loop, so before the client will get a
      * positive reply about the operation performed. */
+    // 将本次数据追加到 aof_buf中 最终写入aof_file是通过这个aof_buf的
     if (server.aof_state == AOF_ON)
         server.aof_buf = sdscatlen(server.aof_buf,buf,sdslen(buf));
 
@@ -648,6 +658,7 @@ void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int a
      * accumulate the differences between the child DB and the current one
      * in a buffer, so that when the child process will do its work we
      * can append the differences to the new append only file. */
+    // 如果此时有正在处理aof的子进程 将数据也写入到rewriteBuf中 这部分数据是需要通过pipe发送到子进程的
     if (server.aof_child_pid != -1)
         aofRewriteBufferAppend((unsigned char*)buf,sdslen(buf));
 

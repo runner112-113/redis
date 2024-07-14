@@ -2331,9 +2331,11 @@ void createSharedObjects(void) {
     shared.zpopmax = createStringObject("ZPOPMAX",7);
     shared.multi = createStringObject("MULTI",5);
     shared.exec = createStringObject("EXEC",4);
+    // 创建0-9999的整数值共享对象
     for (j = 0; j < OBJ_SHARED_INTEGERS; j++) {
         shared.integers[j] =
             makeObjectShared(createObject(OBJ_STRING,(void*)(long)j));
+        // 改成OBJ_ENCODING_INT编码
         shared.integers[j]->encoding = OBJ_ENCODING_INT;
     }
     for (j = 0; j < OBJ_SHARED_BULKHDR_LEN; j++) {
