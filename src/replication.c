@@ -176,6 +176,7 @@ void feedReplicationBacklog(void *ptr, size_t len) {
         p += thislen;
         server.repl_backlog_histlen += thislen;
     }
+    // 基于数量的滑动
     if (server.repl_backlog_histlen > server.repl_backlog_size)
         server.repl_backlog_histlen = server.repl_backlog_size;
     /* Set the offset of the first byte we have in the backlog. */
@@ -513,6 +514,7 @@ int replicationSetupSlaveForFullResync(client *slave, long long offset) {
  *
  * On success return C_OK, otherwise C_ERR is returned and we proceed
  * with the usual full resync. */
+// PSYNC replicationid offset
 int masterTryPartialResynchronization(client *c) {
     long long psync_offset, psync_len;
     char *master_replid = c->argv[1]->ptr;
@@ -557,6 +559,7 @@ int masterTryPartialResynchronization(client *c) {
     }
 
     /* We still have the data our slave is asking for? */
+    // 判断能不能使用复制缓冲区，不符合就全量复制
     if (!server.repl_backlog ||
         psync_offset < server.repl_backlog_off ||
         psync_offset > (server.repl_backlog_off + server.repl_backlog_histlen))
@@ -587,10 +590,12 @@ int masterTryPartialResynchronization(client *c) {
     } else {
         buflen = snprintf(buf,sizeof(buf),"+CONTINUE\r\n");
     }
+    // 响应 +CONTINUE
     if (connWrite(c->conn,buf,buflen) != buflen) {
         freeClientAsync(c);
         return C_OK;
     }
+    // 写出复制缓冲区中的数据
     psync_len = addReplyReplicationBacklog(c,psync_offset);
     serverLog(LL_NOTICE,
         "Partial resynchronization request from %s accepted. Sending %lld bytes of backlog starting from offset %lld.",
@@ -1380,6 +1385,7 @@ void replicationEmptyDbCallback(void *privdata) {
  * performed, this function materializes the master client we store
  * at server.master, starting from the specified file descriptor. */
 void replicationCreateMasterClient(connection *conn, int dbid) {
+    // 创建客户端
     server.master = createClient(conn);
     if (conn)
         connSetReadHandler(server.master->conn, readQueryFromClient);
@@ -2467,17 +2473,21 @@ void replicationSetMaster(char *ip, int port) {
     sdsfree(server.masterhost);
     server.masterhost = sdsnew(ip);
     server.masterport = port;
+    // 如果当前实例已经连接到一个主服务器，则调用 freeClient(server.master) 断开与当前主服务器的连接
     if (server.master) {
         freeClient(server.master);
     }
     disconnectAllBlockedClients(); /* Clients blocked in master, now slave. */
 
     /* Update oom_score_adj */
+    // 调整 OOM 分数，以反映当前实例的角色变化（从主服务器变为从服务器）
     setOOMScoreAdj(-1);
 
     /* Force our slaves to resync with us as well. They may hopefully be able
      * to partially resync with us, but we can notify the replid change. */
+    // 断开所有从属服务器的连接，这些从属服务器现在需要重新同步
     disconnectSlaves();
+    // 取消正在进行的复制握手
     cancelReplicationHandshake();
     /* Before destroying our master state, create a cached master using
      * our own parameters, to later PSYNC with the new master. */
@@ -2497,6 +2507,7 @@ void replicationSetMaster(char *ip, int port) {
                               REDISMODULE_SUBEVENT_MASTER_LINK_DOWN,
                               NULL);
 
+    // 将复制状态设置为 REPL_STATE_CONNECT，表示当前实例正在尝试连接到新的主服务器
     server.repl_state = REPL_STATE_CONNECT;
 }
 
@@ -2583,6 +2594,7 @@ void replicaofCommand(client *c) {
 
     /* The special host/port combination "NO" "ONE" turns the instance
      * into a master. Otherwise the new master address is set. */
+    // SLAVEOF/REPLICAOF NO ONE
     if (!strcasecmp(c->argv[1]->ptr,"no") &&
         !strcasecmp(c->argv[2]->ptr,"one")) {
         if (server.masterhost) {
@@ -2780,6 +2792,7 @@ void replicationCacheMasterUsingMyself(void) {
 
     /* The master client we create can be set to any DBID, because
      * the new master will start its replication stream with SELECT. */
+    // 构建客户端
     replicationCreateMasterClient(NULL,-1);
 
     /* Use our own ID / offset. */

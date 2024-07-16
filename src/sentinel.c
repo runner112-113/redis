@@ -170,21 +170,31 @@ typedef struct instanceLink {
 } instanceLink;
 
 typedef struct sentinelRedisInstance {
+    // 标志位，用于表示实例的状态，参见 SRI_... 定义
     int flags;      /* See SRI_... defines */
+    // 该 Sentinel 视角下的主服务器名称
     char *name;     /* Master name from the point of view of this sentinel. */
     char *runid;    /* Run ID of this instance, or unique ID if is a Sentinel.*/
     uint64_t config_epoch;  /* Configuration epoch. */
+    // 主服务器地址
     sentinelAddr *addr; /* Master host. */
     instanceLink *link; /* Link to the instance, may be shared for Sentinels. */
+    // 最后一次通过 Pub/Sub 发送 hello 的时间
     mstime_t last_pub_time;   /* Last time we sent hello via Pub/Sub. */
+    // 如果设置了 SRI_SENTINEL，表示最后一次通过 Pub/Sub 收到 hello 的时间
     mstime_t last_hello_time; /* Only used if SRI_SENTINEL is set. Last time
                                  we received a hello from this Sentinel
                                  via Pub/Sub. */
+    // 最后一次回复 SENTINEL is-master-down 命令的时间
     mstime_t last_master_down_reply_time; /* Time of last reply to
                                              SENTINEL is-master-down command. */
+    // 主观上认为实例下线的时间
     mstime_t s_down_since_time; /* Subjectively down since time. */
+    // 客观上认为实例下线的时间
     mstime_t o_down_since_time; /* Objectively down since time. */
+    // 认为实例下线的时间周期
     mstime_t down_after_period; /* Consider it down after that period. */
+    // 收到 INFO 输出的时间
     mstime_t info_refresh;  /* Time at which we received INFO output from it. */
     dict *renamed_commands;     /* Commands renamed in this instance:
                                    Sentinel will use the alternative commands
@@ -198,26 +208,33 @@ typedef struct sentinelRedisInstance {
      * we do silly things. */
     int role_reported;
     mstime_t role_reported_time;
+    // 最后一次从服务器主地址更改的时间
     mstime_t slave_conf_change_time; /* Last time slave master addr changed. */
 
     /* Master specific. */
+    // 监控同一主服务器的其他 Sentinels
     dict *sentinels;    /* Other sentinels monitoring the same master. */
     // 主服务器下面的所有从服务器信息
     // key为ip:port， value为sentinelRedisInstance
     dict *slaves;       /* Slaves for this master instance. */
+    //  同意故障的 Sentinel 数量
     unsigned int quorum;/* Number of sentinels that need to agree on failure. */
     int parallel_syncs; /* How many slaves to reconfigure at same time. */
     char *auth_pass;    /* Password to use for AUTH against master & replica. */
     char *auth_user;    /* Username for ACLs AUTH against master & replica. */
 
     /* Slave specific. */
+    // 从服务器复制链接断开的时间
     mstime_t master_link_down_time; /* Slave replication link down time. */
+    // 从服务器优先级，根据 INFO 输出
     int slave_priority; /* Slave priority according to its INFO output. */
+    // 发送 SLAVE OF <new> 的时间
     mstime_t slave_reconf_sent_time; /* Time at which we sent SLAVE OF <new> */
     struct sentinelRedisInstance *master; /* Master instance if it's slave. */
     char *slave_master_host;    /* Master host as reported by INFO */
     int slave_master_port;      /* Master port as reported by INFO */
     int slave_master_link_status; /* Master link status as reported by INFO */
+    //  从服务器复制偏移量
     unsigned long long slave_repl_offset; /* Slave replication offset. */
     /* Failover */
     char *leader;       /* If this is a master instance, this is the runid of
@@ -2089,6 +2106,7 @@ void sentinelReconnectInstance(sentinelRedisInstance *ri) {
             sentinelSetClientName(ri,link->cc,"cmd");
 
             /* Send a PING ASAP when reconnecting. */
+            // PING 命令
             sentinelSendPing(ri);
         }
     }
@@ -3803,6 +3821,7 @@ void sentinelAskMasterStateToOtherSentinels(sentinelRedisInstance *master, int f
     dictIterator *di;
     dictEntry *de;
 
+    // 拿到所有的sentinel实例
     di = dictGetIterator(master->sentinels);
     while((de = dictNext(di)) != NULL) {
         sentinelRedisInstance *ri = dictGetVal(de);
@@ -4567,6 +4586,12 @@ void sentinelHandleDictOfRedisInstances(dict *instances) {
  * for SENTINEL_TILT_PERIOD to elapse before starting to act again.
  *
  * During TILT time we still collect information, we just do not act. */
+/**
+ * Sentinel的Tilt模式会在以下两种情况下开启：
+ * 1. Sentinel进程被阻塞超过SENTINEL_TILT_TRIGGER时间（默认为2s），可能因为进程或系统I/O（内存，网络，存储）请求过多。
+ * 2. 系统时钟调整到之前某个时间值。
+ * Tilt模式是一种保护机制，处于该模式下Sentinel除了发送必要的PING及INFO命令外，不会主动做其他操作，例如主备倒换，标志主观、客观下线等。但可以通过INFO 命令及发布订阅连接的HELLO消息包来获取外界信息并对自身结构进行更新，直到SENTINEL_TILT_PERIOD时长（默认为30s）结束为止，我们可以认为Tilt模式是Sentinel的被动模式。
+ */
 void sentinelCheckTiltCondition(void) {
     mstime_t now = mstime();
     mstime_t delta = now - sentinel.previous_time;
@@ -4580,6 +4605,11 @@ void sentinelCheckTiltCondition(void) {
 }
 
 void sentinelTimer(void) {
+    // TILT检测
+    /**
+     * Redis 的 TILT 模式是 Redis Sentinel 中的一个保护机制，用于防止在系统负载过高或其他异常情况下进行错误的故障转移。
+     * 这个机制可以在 Sentinel 感知到系统的时间戳异常时，进入 TILT 模式，暂时停止一些关键操作以保护系统的稳定性。
+     */
     sentinelCheckTiltCondition();
     sentinelHandleDictOfRedisInstances(sentinel.masters);
     sentinelRunPendingScripts();
