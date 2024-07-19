@@ -738,6 +738,7 @@ void keysCommand(client *c) {
 
         if (allkeys || stringmatchlen(pattern,plen,key,sdslen(key),0)) {
             keyobj = createStringObject(key,sdslen(key));
+            // 判断键是否过期
             if (!keyIsExpired(c->db,keyobj)) {
                 addReplyBulk(c,keyobj);
                 numkeys++;

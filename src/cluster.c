@@ -1407,6 +1407,7 @@ int clusterStartHandshake(char *ip, int port, int cport) {
     memcpy(n->ip,norm_ip,sizeof(n->ip));
     n->port = port;
     n->cport = cport;
+    // 添加到cluster节点中
     clusterAddNode(n);
     return 1;
 }
@@ -4484,6 +4485,7 @@ NULL
                     (char*)c->argv[4]->ptr);
                 return;
             }
+            // 标记slot槽正在迁移中
             server.cluster->migrating_slots_to[slot] = n;
         } else if (!strcasecmp(c->argv[3]->ptr,"importing") && c->argc == 5) {
             if (server.cluster->slots[slot] == myself) {
