@@ -680,6 +680,9 @@ typedef struct redisDb {
     dict *expires;              /* Timeout of keys with a timeout set */
     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP)*/
     dict *ready_keys;           /* Blocked keys that received a PUSH */
+    // 正在被WATCH命令监视的键
+    // 键为：某个被WATCH命令监视的数据库键
+    // 值为：所有监视该键的客户端链表
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
     int id;                     /* Database ID */
     long long avg_ttl;          /* Average TTL, just for stats */
@@ -694,13 +697,18 @@ typedef struct dbBackup dbBackup;
 
 /* Client MULTI/EXEC state */
 typedef struct multiCmd {
+    // 参数
     robj **argv;
+    // 参数数量
     int argc;
+    // 命令指针
     struct redisCommand *cmd;
 } multiCmd;
 
 typedef struct multiState {
+    // 事务队列，FIFO
     multiCmd *commands;     /* Array of MULTI commands */
+    // 已入队命令计数
     int count;              /* Total number of MULTI commands */
     int cmd_flags;          /* The accumulated command flags OR-ed together.
                                So if at least a command has a given flag, it
@@ -847,22 +855,31 @@ typedef struct client {
     sds replpreamble;       /* Replication DB preamble. */
     long long read_reploff; /* Read replication offset if this is a master. */
     long long reploff;      /* Applied replication offset if this is a master. */
+    // 从服务器的复制偏移量  每秒通过 REPLCONF ACK 命令上报
     long long repl_ack_off; /* Replication ack offset, if this is a slave. */
+    // 从服务器最后一次REPLCONF ACK 命令上报的时间
     long long repl_ack_time;/* Replication ack time, if this is a slave. */
     long long repl_last_partial_write; /* The last time the server did a partial write from the RDB child pipe to this replica  */
     long long psync_initial_offset; /* FULLRESYNC reply offset other slaves
                                        copying this slave output buffer
                                        should use. */
     char replid[CONFIG_RUN_ID_SIZE+1]; /* Master replication ID (if master). */
+    // 从服务器监听的端口 REPLCONF listening-port 命令上报的
     int slave_listening_port; /* As configured with: REPLCONF listening-port */
+    // 从服务器监听的IP   REPLCONF ip-address
     char slave_ip[NET_IP_STR_LEN]; /* Optionally given by REPLCONF ip-address */
     int slave_capa;         /* Slave capabilities: SLAVE_CAPA_* bitwise OR. */
+    // 客户端的事务状态
     multiState mstate;      /* MULTI/EXEC state */
     int btype;              /* Type of blocking op if CLIENT_BLOCKED. */
     blockingState bpop;     /* blocking state */
+    // 等于master_repl_offset，即当前最新的主节点offset
     long long woff;         /* Last write global replication offset. */
     list *watched_keys;     /* Keys WATCHED for MULTI/EXEC CAS */
+    // 保存所有频道的订阅关系
+    // 键是某个被订阅的channel,值是订阅该channel的客户端链表
     dict *pubsub_channels;  /* channels a client is interested in (SUBSCRIBE) */
+    // 保存所有的模式订阅的关系
     list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
     sds peerid;             /* Cached peer ID. */
     listNode *client_list_node; /* list node in client list */
@@ -1320,7 +1337,9 @@ struct redisServer {
     char *syslog_ident;             /* Syslog ident */
     int syslog_facility;            /* Syslog facility */
     /* Replication (master) */
+    // 当前主节点的复制id
     char replid[CONFIG_RUN_ID_SIZE+1];  /* My current replication ID. */
+    // 上一个主节点的复制id
     char replid2[CONFIG_RUN_ID_SIZE+1]; /* replid inherited from master*/
     long long master_repl_offset;   /* My current replication offset */
     long long second_replid_offset; /* Accept offsets up to this for replid2. */
@@ -1328,7 +1347,9 @@ struct redisServer {
     int repl_ping_slave_period;     /* Master pings the slave every N seconds */
     // 复制缓冲区
     char *repl_backlog;             /* Replication backlog for partial syncs */
+    // 复制缓冲区的最大容量 默认1M
     long long repl_backlog_size;    /* Backlog circular buffer size */
+    // 复制缓冲区当前拥有的数据长度
     long long repl_backlog_histlen; /* Backlog actual data length */
     long long repl_backlog_idx;     /* Backlog circular buffer current offset,
                                        that is the next byte will'll write to.*/
@@ -1338,8 +1359,11 @@ struct redisServer {
                                        gets released. */
     time_t repl_no_slaves_since;    /* We have no slaves since that time.
                                        Only valid if server.slaves len is 0. */
+    // 最小的从服务器数量
     int repl_min_slaves_to_write;   /* Min number of slaves to write. */
+    // 从服务器最大延迟 lag = server.unixtime - slave->repl_ack_time
     int repl_min_slaves_max_lag;    /* Max lag of <count> slaves to write. */
+    // 健康的slaves
     int repl_good_slaves_count;     /* Number of slaves with lag <= max_lag. */
     int repl_diskless_sync;         /* Master send RDB to slaves sockets directly. */
     int repl_diskless_load;         /* Slave parse RDB directly from the socket.
@@ -1348,7 +1372,9 @@ struct redisServer {
     /* Replication (slave) */
     char *masteruser;               /* AUTH with this user and masterauth with master */
     char *masterauth;               /* AUTH with this password with master */
+    // 主服务器地址
     char *masterhost;               /* Hostname of master */
+    // 主服务器端口
     int masterport;                 /* Port of master */
     int repl_timeout;               /* Timeout after N seconds of master idle */
     client *master;     /* Client that is master for this slave */
@@ -1509,7 +1535,9 @@ struct redisServer {
 };
 
 typedef struct pubsubPattern {
+    // 订阅模式的客户端
     client *client;
+    // 被订阅的客户端
     robj *pattern;
 } pubsubPattern;
 
