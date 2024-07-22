@@ -3044,6 +3044,7 @@ void initServer(void) {
 
     if (server.cluster_enabled) clusterInit();
     replicationScriptCacheInit();
+    // 初始lua化脚本环境
     scriptingInit(1);
     slowlogInit();
     latencyMonitorInit();

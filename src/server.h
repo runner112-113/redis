@@ -1403,6 +1403,7 @@ struct redisServer {
     long long master_initial_offset;           /* Master PSYNC offset. */
     int repl_slave_lazy_flush;          /* Lazy FLUSHALL before loading DB? */
     /* Replication script cache. */
+    // 记录了自己已经将哪些脚本传播给了所有从服务器
     dict *repl_scriptcache_dict;        /* SHA1 all slaves are aware of. */
     list *repl_scriptcache_fifo;        /* First in, first out LRU eviction. */
     unsigned int repl_scriptcache_size; /* Max number of elements. */
@@ -1480,10 +1481,15 @@ struct redisServer {
                                         is down? */
     int cluster_config_file_lock_fd;   /* cluster config fd, will be flock */
     /* Scripting */
+    // lua脚本环境
     lua_State *lua; /* The Lua interpreter. We use just one for all clients */
+    // Lua脚本的伪客户端
     client *lua_client;   /* The "fake client" to query Redis from Lua */
     client *lua_caller;   /* The client running EVAL right now, or NULL */
     char* lua_cur_script; /* SHA1 of the script currently running, or NULL */
+    // lua_scripts字典
+    // Redis服务器会将所有被Eval命令执行过的Lua脚本，以及所有被SCRIPT LOAD命令载入过的Lua脚本保存在lua_scripts字典中
+    // lua_scripts有两个作用：1.实现SCRIPT EXISTS命令 2.实现脚本复制功能
     dict *lua_scripts;         /* A dictionary of SHA1 -> Lua scripts */
     unsigned long long lua_scripts_mem;  /* Cached scripts' memory + oh */
     mstime_t lua_time_limit;  /* Script timeout in milliseconds */
