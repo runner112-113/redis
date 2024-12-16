@@ -1125,6 +1125,7 @@ void scriptingInit(int setup) {
         ldbInit();
     }
 
+    // 载入函数库
     luaLoadLibraries(lua);
     luaRemoveUnsupportedFunctions(lua);
 
@@ -1135,6 +1136,7 @@ void scriptingInit(int setup) {
     server.lua_scripts_mem = 0;
 
     /* Register the redis commands table and fields */
+    // 创建Redis表格
     lua_newtable(lua);
 
     /* redis.call */
@@ -1267,6 +1269,7 @@ void scriptingInit(int setup) {
      * inside the Lua interpreter.
      * Note: there is no need to create it again when this function is called
      * by scriptingReset(). */
+    // 创建Lua脚本的伪客户端，并标记CLIENT_LUA
     if (server.lua_client == NULL) {
         server.lua_client = createClient(NULL);
         server.lua_client->flags |= CLIENT_LUA;
@@ -1542,6 +1545,7 @@ void evalGenericCommand(client *c, int evalsha) {
             addReply(c, shared.noscripterr);
             return;
         }
+        // 创建lua函数
         if (luaCreateFunction(c,lua,c->argv[1]) == NULL) {
             lua_pop(lua,1); /* remove the error handler from the stack. */
             /* The error is sent to the client by luaCreateFunction()
@@ -1711,6 +1715,7 @@ NULL
         };
         addReplyHelp(c, help);
     } else if (c->argc == 2 && !strcasecmp(c->argv[1]->ptr,"flush")) {
+        // 重置lua_scripts字典以及lua环境
         scriptingReset();
         addReply(c,shared.ok);
         replicationScriptCacheFlush();

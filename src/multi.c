@@ -95,10 +95,12 @@ void flagTransaction(client *c) {
 }
 
 void multiCommand(client *c) {
+    // 事务不支持嵌套
     if (c->flags & CLIENT_MULTI) {
         addReplyError(c,"MULTI calls can not be nested");
         return;
     }
+    // 标记客户端开启事务
     c->flags |= CLIENT_MULTI;
     addReply(c,shared.ok);
 }
@@ -221,6 +223,7 @@ void execCommand(client *c) {
     c->argv = orig_argv;
     c->argc = orig_argc;
     c->cmd = orig_cmd;
+    // 事务执行结束后 清理客户端的各种事物状态
     discardTransaction(c);
 
     /* Make sure the EXEC command will be propagated as well if MULTI
@@ -348,6 +351,7 @@ void touchWatchedKey(redisDb *db, robj *key) {
     listNode *ln;
 
     if (dictSize(db->watched_keys) == 0) return;
+    // 拿到对应db的当前修改key的客户端集合
     clients = dictFetchValue(db->watched_keys, key);
     if (!clients) return;
 
@@ -357,6 +361,7 @@ void touchWatchedKey(redisDb *db, robj *key) {
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
 
+        // 打开标识  表示该客户端的事务安全性已经被破坏
         c->flags |= CLIENT_DIRTY_CAS;
     }
 }

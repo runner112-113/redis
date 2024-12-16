@@ -287,6 +287,7 @@ void replicationFeedSlaves(list *slaves, int dictid, robj **argv, int argc) {
     }
 
     /* Write the command to every slave. */
+    // 写给每个从服务器
     listRewind(slaves,&li);
     while((ln = listNext(&li))) {
         client *slave = ln->value;
@@ -745,6 +746,8 @@ void syncCommand(client *c) {
      *
      * So the slave knows the new replid and offset to try a PSYNC later
      * if the connection with the master is lost. */
+    // PSYNC ? -1 是全量复制
+    // PSYNC replicationid offset
     if (!strcasecmp(c->argv[0]->ptr,"psync")) {
         if (masterTryPartialResynchronization(c) == C_OK) {
             server.stat_sync_partial_ok++;
@@ -2867,6 +2870,7 @@ void refreshGoodSlavesCount(void) {
     if (!server.repl_min_slaves_to_write ||
         !server.repl_min_slaves_max_lag) return;
 
+    // 遍历所有的从节点
     listRewind(server.slaves,&li);
     while((ln = listNext(&li))) {
         client *slave = ln->value;
@@ -3044,10 +3048,12 @@ void waitCommand(client *c) {
     c->bpop.reploffset = offset;
     c->bpop.numreplicas = numreplicas;
     listAddNodeTail(server.clients_waiting_acks,c);
+    // 阻塞客户端
     blockClient(c,BLOCKED_WAIT);
 
     /* Make sure that the server will send an ACK request to all the slaves
      * before returning to the event loop. */
+    // 标记get_ack_from_slaves=1，在BeforeSleep中会向所有的从节点发送REPLCONF GETACK *
     replicationRequestAckFromSlaves();
 }
 

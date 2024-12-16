@@ -3044,6 +3044,7 @@ void initServer(void) {
 
     if (server.cluster_enabled) clusterInit();
     replicationScriptCacheInit();
+    // 初始lua化脚本环境
     scriptingInit(1);
     slowlogInit();
     latencyMonitorInit();
@@ -3795,6 +3796,7 @@ int processCommand(client *c) {
     }
 
     /* Exec the command */
+    // 对于开启事务的处理
     if (c->flags & CLIENT_MULTI &&
         c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
         c->cmd->proc != multiCommand && c->cmd->proc != watchCommand)
@@ -3802,6 +3804,7 @@ int processCommand(client *c) {
         queueMultiCommand(c);
         addReply(c,shared.queued);
     } else {
+        // 未开启事务 直接执行
         call(c,CMD_CALL_FULL);
         c->woff = server.master_repl_offset;
         if (listLength(server.ready_keys))
