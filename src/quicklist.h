@@ -44,15 +44,27 @@
  * attempted_compress: 1 bit, boolean, used for verifying during testing.
  * extra: 10 bits, free for future use; pads out the remainder of 32 bits */
 typedef struct quicklistNode {
+    // 上一个node节点
     struct quicklistNode *prev;
+    // 下一个node节点
     struct quicklistNode *next;
+    // 数据指针。如果当前节点的数据没有压缩，那么它指向一个ziplist结构；否则，它指向一个quicklistLZF结构
     unsigned char *zl;
+    // 表示zl指向的ziplist的总大小（包括zlbytes, zltail, zllen, zlend和各个数据项）。
+    // 需要注意的是：如果ziplist被压缩了，那么这个sz的值仍然是压缩前的ziplist大小。
     unsigned int sz;             /* ziplist size in bytes */
+    // 表示ziplist里面包含的数据项个数。这个字段只有16bit
     unsigned int count : 16;     /* count of items in ziplist */
+    // 表示ziplist是否压缩了（以及用了哪个压缩算法）。
+    // 目前只有两种取值：2表示被压缩了（而且用的是LZF压缩算法），1表示没有压缩。
     unsigned int encoding : 2;   /* RAW==1 or LZF==2 */
+    // 是一个预留字段。本来设计是用来表明一个quicklist节点下面是直接存数据，还是使用ziplist存数据，或者用其它的结构来存数据（用作一个数据容器，所以叫container）。
+    // 但是，在目前的实现中，这个值是一个固定的值2，表示使用ziplist作为数据容器。
     unsigned int container : 2;  /* NONE==1 or ZIPLIST==2 */
+    // 当我们使用类似lindex这样的命令查看了某一项本来压缩的数据时，需要把数据暂时解压，这时就设置recompress=1做一个标记，等有机会再把数据重新压缩。
     unsigned int recompress : 1; /* was this node previous compressed? */
     unsigned int attempted_compress : 1; /* node can't compress; too small */
+    // 其它扩展字段。目前Redis的实现里也没用上。
     unsigned int extra : 10; /* more bits to steal for future usage */
 } quicklistNode;
 
