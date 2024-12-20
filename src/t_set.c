@@ -40,8 +40,11 @@ void sunionDiffGenericCommand(client *c, robj **setkeys, int setnum,
  * an integer-encodable value, an intset will be returned. Otherwise a regular
  * hash table. */
 robj *setTypeCreate(sds value) {
+    // 判断是否是64位的有符号整数
     if (isSdsRepresentableAsLongLong(value,NULL) == C_OK)
+        // intset
         return createIntsetObject();
+    // hash table
     return createSetObject();
 }
 

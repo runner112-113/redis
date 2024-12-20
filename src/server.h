@@ -1105,6 +1105,7 @@ struct redisServer {
                                    the actual 'hz' field value if dynamic-hz
                                    is enabled. */
     mode_t umask;               /* The umask value of the process on startup */
+    // 每秒钟执行server.hz次serverCron()
     int hz;                     /* serverCron() calls frequency in hertz */
     int in_fork_child;          /* indication that this is a fork child */
     redisDb *db;
@@ -1347,7 +1348,7 @@ struct redisServer {
     int repl_ping_slave_period;     /* Master pings the slave every N seconds */
     // 复制缓冲区
     char *repl_backlog;             /* Replication backlog for partial syncs */
-    // 复制缓冲区的最大容量 默认1M
+    // 复制缓冲区的最大容量 默认1M(大小有限的环形缓冲区)
     long long repl_backlog_size;    /* Backlog circular buffer size */
     // 复制缓冲区当前拥有的数据长度
     long long repl_backlog_histlen; /* Backlog actual data length */
