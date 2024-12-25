@@ -810,7 +810,7 @@ void bitcountCommand(client *c) {
     /* Precondition: end >= 0 && end < strlen, so the only condition where
      * zero can be returned is: start > end. */
     if (start > end) {
-        addReply(c,shared.czero);
+        addReply( c,shared.czero);
     } else {
         long bytes = end-start+1;
 
