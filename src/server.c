@@ -1470,6 +1470,8 @@ int incrementallyRehash(int dbid) {
 void updateDictResizePolicy(void) {
     if (server.in_fork_child != CHILD_TYPE_NONE)
         dictSetResizeEnabled(DICT_RESIZE_FORBID);
+    // 当前没有 RDB 子进程，并且也没有 AOF 子进程。
+    // 这就对应了 Redis 没有执行 RDB 快照和没有进行 AOF 重写的场景
     else if (hasActiveChildProcess())
         dictSetResizeEnabled(DICT_RESIZE_AVOID);
     else
@@ -1733,6 +1735,7 @@ void databasesCron(void) {
         }
 
         /* Rehash */
+        // 定时rehash
         if (server.activerehashing) {
             for (j = 0; j < dbs_per_call; j++) {
                 int work_done = incrementallyRehash(rehash_db);

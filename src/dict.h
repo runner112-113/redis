@@ -48,13 +48,16 @@
 #define DICT_NOTUSED(V) ((void) V)
 
 typedef struct dictEntry {
+    // key
     void *key;
+    // value
     union {
         void *val;
         uint64_t u64;
         int64_t s64;
         double d;
     } v;
+    // 下一个dictEntry的指针
     struct dictEntry *next;
 } dictEntry;
 
@@ -69,8 +72,11 @@ typedef struct dictType {
 
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
+// hash表的定义
 typedef struct dictht {
+    // 二维数组
     dictEntry **table;
+    // hash表大小
     unsigned long size;
     unsigned long sizemask;
     unsigned long used;
@@ -79,7 +85,10 @@ typedef struct dictht {
 typedef struct dict {
     dictType *type;
     void *privdata;
+    // 两个Hash表，交替使用，用于rehash操作
     dictht ht[2];
+    // Hash表是否在进行rehash的标识，-1表示没有进行rehash
+    // 当前 rehash 在对哪个 bucket 做数据迁移
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
     unsigned long iterators; /* number of iterators currently running */
 } dict;
