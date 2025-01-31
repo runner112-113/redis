@@ -37,11 +37,19 @@
 #endif
 
 /* ===================== Creation and parsing of objects ==================== */
-
+/**
+ * createObject 函数主要是用来创建 Redis 的数据对象的。
+ * 因为 Redis 的数据对象有很多类型，比如 String、List、Hash 等，所以在 createObject 函数的两个参数中，
+ * 有一个就是用来表示所要创建的数据对象类型，而另一个是指向数据对象的指针
+ */
 robj *createObject(int type, void *ptr) {
+    //给redisObject结构体分配空间
     robj *o = zmalloc(sizeof(*o));
+    //设置redisObject的类型
     o->type = type;
+    //设置redisObject的编码类型，此处是OBJ_ENCODING_RAW，表示常规的SDS
     o->encoding = OBJ_ENCODING_RAW;
+    //直接将传入的指针赋值给redisObject中的指针。
     o->ptr = ptr;
     o->refcount = 1;
 
@@ -82,6 +90,7 @@ robj *createRawStringObject(const char *ptr, size_t len) {
  * an object where the sds string is actually an unmodifiable string
  * allocated in the same chunk as the object itself. */
 robj *createEmbeddedStringObject(const char *ptr, size_t len) {
+    // 一次内存分配，包含：redisObject结构体+sdshdr8+字符串+\0
     robj *o = zmalloc(sizeof(robj)+sizeof(struct sdshdr8)+len+1);
     struct sdshdr8 *sh = (void*)(o+1);
 
@@ -117,9 +126,11 @@ robj *createEmbeddedStringObject(const char *ptr, size_t len) {
  * we allocate as EMBSTR will still fit into the 64 byte arena of jemalloc. */
 #define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44
 robj *createStringObject(const char *ptr, size_t len) {
+    //创建嵌入式字符串，字符串长度小于等于44字节
     if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT)
         return createEmbeddedStringObject(ptr,len);
     else
+        //创建普通字符串，字符串长度大于44字节
         return createRawStringObject(ptr,len);
 }
 
