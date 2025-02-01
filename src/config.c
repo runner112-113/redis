@@ -651,10 +651,13 @@ void loadServerConfig(char *filename, char *options) {
         if (fp != stdin) fclose(fp);
     }
     /* Append the additional options */
+    // 把解析后的命令行参数options，追加到配置文件形成的配置项字符串
     if (options) {
         config = sdscat(config,"\n");
         config = sdscat(config,options);
     }
+    // 对配置项字符串中的每一个配置项进行匹配。一旦匹配成功，
+    // loadServerConfigFromString 函数就会按照配置项的值设置 server 的参数。
     loadServerConfigFromString(config);
     sdsfree(config);
 }

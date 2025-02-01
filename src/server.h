@@ -94,8 +94,11 @@ typedef long long ustime_t; /* microsecond time type. */
 #define C_ERR                   -1
 
 /* Static server configuration */
+// server后台任务的默认运行频率
 #define CONFIG_DEFAULT_HZ        10             /* Time interrupt calls/sec. */
+// server后台任务的最小运行频率
 #define CONFIG_MIN_HZ            1
+// server后台任务的最大运行频率
 #define CONFIG_MAX_HZ            500
 #define MAX_CLIENTS_PER_CLOCK_TICK 200          /* HZ is adapted based on that. */
 #define CONFIG_MAX_LINE    1024
@@ -943,11 +946,17 @@ struct sharedObjectsStruct {
 
 /* ZSETs use a specialized version of Skiplists */
 typedef struct zskiplistNode {
+    //Sorted Set中的元素
     sds ele;
+    //元素权重值
     double score;
+    //后向指针
     struct zskiplistNode *backward;
+    //节点的level数组，保存每层上的前向指针和跨度
     struct zskiplistLevel {
+        // 每层上的前向指针
         struct zskiplistNode *forward;
+        // 当前层的跨度
         unsigned long span;
     } level[];
 } zskiplistNode;
@@ -959,7 +968,9 @@ typedef struct zskiplist {
 } zskiplist;
 
 typedef struct zset {
+    // 哈希表
     dict *dict;
+    // 跳表
     zskiplist *zsl;
 } zset;
 
