@@ -33,7 +33,7 @@
 #include <stdint.h>
 
 typedef struct intset {
-    // 编码方式
+    // 编码方式,支持存放16位，32位，64位的整数
     uint32_t encoding;
     // 集合中包含的元素数量
     uint32_t length;
