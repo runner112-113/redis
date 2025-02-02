@@ -1028,6 +1028,7 @@ static void acceptCommonHandler(connection *conn, int flags, char *ip) {
     }
 
     /* Create connection and client */
+    // 创建客户端
     if ((c = createClient(conn)) == NULL) {
         serverLog(LL_WARNING,
             "Error registering fd event for the new client: %s (conn: %s)",
@@ -1499,7 +1500,8 @@ int writeToClient(client *c, int handler_installed) {
 
 /* Write event handler. Just send data to the client. */
 /**
- * 命令回复处理器，当一次事件循环之后写出缓冲区中还有数据残留，则这个处理器会被注册绑定到相应的连接上，等连接触发写就绪事件时，它会将写出缓冲区剩余的数据回写到客户端。
+ * 命令回复处理器，当一次事件循环之后写出缓冲区中还有数据残留，则这个处理器会被注册绑定到相应的连接上，
+ * 等连接触发写就绪事件时，它会将写出缓冲区剩余的数据回写到客户端。
  * @param conn
  */
 void sendReplyToClient(connection *conn) {
@@ -1511,12 +1513,15 @@ void sendReplyToClient(connection *conn) {
  * we can just write the replies to the client output buffer without any
  * need to use a syscall in order to install the writable event handler,
  * get it called, and so forth. */
+// 将Redis sever客户端缓冲区中的数据写回客户端
 int handleClientsWithPendingWrites(void) {
     listIter li;
     listNode *ln;
     int processed = listLength(server.clients_pending_write);
 
+    //获取待写回的客户端列表
     listRewind(server.clients_pending_write,&li);
+    //遍历每一个待写回的客户端
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
         c->flags &= ~CLIENT_PENDING_WRITE;
@@ -1530,10 +1535,12 @@ int handleClientsWithPendingWrites(void) {
         if (c->flags & CLIENT_CLOSE_ASAP) continue;
 
         /* Try to write buffers to the client socket. */
+        //调用writeToClient将当前客户端的输出缓冲区数据写回
         if (writeToClient(c,0) == C_ERR) continue;
 
         /* If after the synchronous writes above we still have data to
          * output to the client, we need to install the writable handler. */
+        //如果还有待写回数据
         if (clientHasPendingReplies(c)) {
             int ae_barrier = 0;
             /* For the fsync=always policy, we want that a given FD is never
@@ -1546,6 +1553,7 @@ int handleClientsWithPendingWrites(void) {
             {
                 ae_barrier = 1;
             }
+            // 注册write感兴趣事件
             if (connSetWriteHandlerWithBarrier(c->conn, sendReplyToClient, ae_barrier) == C_ERR) {
                 freeClientAsync(c);
             }

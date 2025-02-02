@@ -32,7 +32,9 @@
 #include <sys/epoll.h>
 
 typedef struct aeApiState {
+    // epoll实例的描述符
     int epfd;
+    //epoll_event结构体数组，记录监听事件
     struct epoll_event *events;
 } aeApiState;
 
@@ -40,11 +42,13 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
     aeApiState *state = zmalloc(sizeof(aeApiState));
 
     if (!state) return -1;
+    //将epoll_event数组保存在aeApiState结构体变量state中
     state->events = zmalloc(sizeof(struct epoll_event)*eventLoop->setsize);
     if (!state->events) {
         zfree(state);
         return -1;
     }
+    //将epoll实例描述符保存在aeApiState结构体变量state中
     state->epfd = epoll_create(1024); /* 1024 is just a hint for the kernel */
     if (state->epfd == -1) {
         zfree(state->events);
@@ -71,18 +75,23 @@ static void aeApiFree(aeEventLoop *eventLoop) {
 }
 
 static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
+    //从eventLoop结构体中获取aeApiState变量，里面保存了epoll实例
     aeApiState *state = eventLoop->apidata;
     struct epoll_event ee = {0}; /* avoid valgrind warning */
     /* If the fd was already monitored for some event, we need a MOD
      * operation. Otherwise we need an ADD operation. */
+    //如果文件描述符fd对应的IO事件已存在，则操作类型为修改，否则为添加
     int op = eventLoop->events[fd].mask == AE_NONE ?
             EPOLL_CTL_ADD : EPOLL_CTL_MOD;
 
     ee.events = 0;
     mask |= eventLoop->events[fd].mask; /* Merge old events */
+    //将可读或可写IO事件类型转换为epoll监听的类型EPOLLIN或EPOLLOUT
     if (mask & AE_READABLE) ee.events |= EPOLLIN;
     if (mask & AE_WRITABLE) ee.events |= EPOLLOUT;
+    //将要监听的文件描述符赋值给ee
     ee.data.fd = fd;
+    //调用epoll_ctl实际创建监听事件
     if (epoll_ctl(state->epfd,op,fd,&ee) == -1) return -1;
     return 0;
 }
@@ -109,12 +118,15 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
     aeApiState *state = eventLoop->apidata;
     int retval, numevents = 0;
 
+    //调用epoll_wait获取监听到的事件
     retval = epoll_wait(state->epfd,state->events,eventLoop->setsize,
             tvp ? (tvp->tv_sec*1000 + tvp->tv_usec/1000) : -1);
     if (retval > 0) {
         int j;
 
+        //获得监听到的事件数量
         numevents = retval;
+        //针对每一个事件，进行处理
         for (j = 0; j < numevents; j++) {
             int mask = 0;
             struct epoll_event *e = state->events+j;
