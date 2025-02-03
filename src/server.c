@@ -2004,6 +2004,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
                     sp->changes, (int)sp->seconds);
                 rdbSaveInfo rsi, *rsiptr;
                 rsiptr = rdbPopulateSaveInfo(&rsi);
+                // 执行rdb
                 rdbSaveBackground(server.rdb_filename,rsiptr);
                 break;
             }
@@ -2020,6 +2021,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
             long long growth = (server.aof_current_size*100/base) - 100;
             if (growth >= server.aof_rewrite_perc) {
                 serverLog(LL_NOTICE,"Starting automatic rewriting of AOF on %lld%% growth",growth);
+                // 执行rewrite aof
                 rewriteAppendOnlyFileBackground();
             }
         }
@@ -2031,6 +2033,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* AOF postponed flush: Try at every cron cycle if the slow fsync
      * completed. */
+    // flush aof
     if (server.aof_flush_postponed_start) flushAppendOnlyFile(0);
 
     /* AOF write errors: in this case we have a buffer to flush as well and
@@ -2136,7 +2139,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
      * events to handle. */
     if (ProcessingEventsWhileBlocked) {
         uint64_t processed = 0;
-        //
+        // 遍历clients_pending_read队列，通过readQueryFromClient读取客户端数据
         processed += handleClientsWithPendingReadsUsingThreads();
         processed += tlsProcessPendingData();
         // 遍历 clients_pending_write 队列，调用 writeToClient 把 client 的写出缓冲区里的数据回写到客户端
@@ -3080,7 +3083,7 @@ void initServer(void) {
 void InitServerLast() {
     // 初始化后台线程
     bioInit();
-    // 初始化 I/O 多线程并启动
+    // 初始化I/O多线程并启动
     initThreadedIO();
     set_jemalloc_bg_thread(server.jemalloc_bg_thread);
     server.initial_memory_usage = zmalloc_used_memory();
@@ -3156,6 +3159,7 @@ void populateCommandTable(void) {
     int numcommands = sizeof(redisCommandTable)/sizeof(struct redisCommand);
 
     for (j = 0; j < numcommands; j++) {
+        // redis命令集合
         struct redisCommand *c = redisCommandTable+j;
         int retval1, retval2;
 
@@ -3587,12 +3591,14 @@ void rejectCommandFormat(client *c, const char *fmt, ...) {
  * other operations can be performed by the caller. Otherwise
  * if C_ERR is returned the client was destroyed (i.e. after QUIT). */
 int processCommand(client *c) {
+    // 将Redis命令替换成module中想要替换的命令
     moduleCallCommandFilters(c);
 
     /* The QUIT command is handled separately. Normal command procs will
      * go through checking for replication and QUIT will cause trouble
      * when FORCE_REPLICATION is enabled and would be implemented in
      * a regular command proc. */
+    // 判断当前命令是否为 quit 命令
     if (!strcasecmp(c->argv[0]->ptr,"quit")) {
         addReply(c,shared.ok);
         c->flags |= CLIENT_CLOSE_AFTER_REPLY;
@@ -3602,6 +3608,7 @@ int processCommand(client *c) {
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
     // 获取指定redisCommand
+    // 在全局变量server的commands成员变量中查找相关的命令
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
     if (!c->cmd) {
         sds args = sdsempty();
@@ -3818,11 +3825,14 @@ int processCommand(client *c) {
     }
 
     /* Exec the command */
-    // 对于开启事务的处理
+    //如果客户端有CLIENT_MULTI标记，并且当前不是exec、discard、multi和watch命令
+    // CLIENT_MULTI-->Redis事务的相关命令，所以它会按照事务的要求，
+    // 调用queueMultiCommand函数将命令入队保存，等待后续一起处理
     if (c->flags & CLIENT_MULTI &&
         c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
         c->cmd->proc != multiCommand && c->cmd->proc != watchCommand)
     {
+        //将命令入队保存，等待后续一起处理
         queueMultiCommand(c);
         addReply(c,shared.queued);
     } else {
@@ -4983,12 +4993,19 @@ void createPidFile(void) {
 void daemonize(void) {
     int fd;
 
+    //fork成功执行或失败，则父进程退出
     if (fork() != 0) exit(0); /* parent exits */
+    //创建新的session
     setsid(); /* create a new session */
 
     /* Every output goes to /dev/null. If Redis is daemonized but
      * the 'logfile' is set to 'stdout' in the configuration file
      * it will not log at all. */
+    // 子进程会用open函数打开/dev/null设备，并把它的标准输入、标准输出和标准错误输出，重新定向到/dev/null设备。
+    // 因为守护进程是在后台运行，它的输入输出是独立于 shell 终端的。
+    // 所以，为了让Redis能以守护进程方式运行，这几步操作的目的就是把当前子进程的输入、输出由原来的shell终端，转向/dev/null设备，
+    // 这样一来，就不再依赖于shell终端了，满足了守护进程的要求
+    //将子进程的标准输入、标准输出、标准错误输出重定向到/dev/null中
     if ((fd = open("/dev/null", O_RDWR, 0)) != -1) {
         dup2(fd, STDIN_FILENO);
         dup2(fd, STDOUT_FILENO);
@@ -5500,7 +5517,9 @@ int main(int argc, char **argv) {
     // Redis 可以配置以守护进程的方式启动（配置文件 daemonize = yes）
     // ，也可以把 Redis 托管给 upstart 或 systemd 来启动/停止（supervised = upstart|systemd|auto）
     server.supervised = redisIsSupervised(server.supervised_mode);
+    //如果配置参数daemonize为1，supervised值为0，那么设置background值为1，否则，设置其为0。
     int background = server.daemonize && !server.supervised;
+    // background为1，则redis以守护进程启动
     if (background) daemonize();
 
     serverLog(LL_WARNING, "oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo");
