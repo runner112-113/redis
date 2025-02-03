@@ -120,6 +120,7 @@ void zslFree(zskiplist *zsl) {
  * (both inclusive), with a powerlaw-alike distribution where higher
  * levels are less likely to be returned. */
 int zslRandomLevel(void) {
+    //初始化层为1
     int level = 1;
     while ((random()&0xFFFF) < (ZSKIPLIST_P * 0xFFFF))
         level += 1;
@@ -135,7 +136,9 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     int i, level;
 
     serverAssert(!isnan(score));
+    //获取跳表的表头
     x = zsl->header;
+    //从最大层数开始逐一遍历
     for (i = zsl->level-1; i >= 0; i--) {
         /* store rank that is crossed to reach the insert position */
         rank[i] = i == (zsl->level-1) ? 0 : rank[i+1];
@@ -145,6 +148,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
                     sdscmp(x->level[i].forward->ele,ele) < 0)))
         {
             rank[i] += x->level[i].span;
+            // 下一层
             x = x->level[i].forward;
         }
         update[i] = x;
@@ -153,6 +157,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
      * scores, reinserting the same element should never happen since the
      * caller of zslInsert() should test in the hash table if the element is
      * already inside or not. */
+    // 随机生成跳表的层数
     level = zslRandomLevel();
     if (level > zsl->level) {
         for (i = zsl->level; i < level; i++) {
@@ -1330,6 +1335,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
     }
 
     /* Update the sorted set according to its encoding. */
+    // ziplist逻辑
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
         unsigned char *eptr;
 
@@ -1379,12 +1385,15 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
 
     /* Note that the above block handling ziplist would have either returned or
      * converted the key to skiplist. */
+    // skiplist逻辑
     if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
         zset *zs = zobj->ptr;
         zskiplistNode *znode;
         dictEntry *de;
 
+        // 查找要插入的元素是否存在
         de = dictFind(zs->dict,ele);
+        // 元素存在
         if (de != NULL) {
             /* NX? Return, same element already exists. */
             if (nx) {
@@ -1394,7 +1403,9 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
             curscore = *(double*)dictGetVal(de);
 
             /* Prepare the score for the increment if needed. */
+            //如果要更新元素权重值
             if (incr) {
+                //更新权重值
                 score += curscore;
                 if (isnan(score)) {
                     *flags |= ZADD_NAN;
@@ -1404,18 +1415,23 @@ int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore) {
             }
 
             /* Remove and re-insert when score changes. */
+            //如果权重发生变化了
             if (score != curscore) {
+                // 更新跳表中的元素权重值
                 znode = zslUpdateScore(zs->zsl,curscore,ele,score);
                 /* Note that we did not removed the original element from
                  * the hash table representing the sorted set, so we just
                  * update the score. */
+                // 把哈希表中该元素（对应哈希表中的 key）的 value 指向跳表结点中的权重值
                 dictGetVal(de) = &znode->score; /* Update score ptr. */
                 *flags |= ZADD_UPDATED;
             }
             return 1;
         } else if (!xx) {
             ele = sdsdup(ele);
+            // 将新元素添加到跳表
             znode = zslInsert(zs->zsl,score,ele);
+            // 添加到hash表
             serverAssert(dictAdd(zs->dict,ele,&znode->score) == DICT_OK);
             *flags |= ZADD_ADDED;
             if (newscore) *newscore = score;
