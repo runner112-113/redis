@@ -5230,8 +5230,10 @@ void memtest(size_t megabytes, int passes);
 int checkForSentinelMode(int argc, char **argv) {
     int j;
 
+    //第一个判断条件，判断执行命令本身是否为redis-sentinel
     if (strstr(argv[0],"redis-sentinel") != NULL) return 1;
     for (j = 1; j < argc; j++)
+        //第二个判断条件，判断命令参数是否有"--sentienl"
         if (!strcmp(argv[j],"--sentinel")) return 1;
     return 0;
 }
@@ -5423,6 +5425,10 @@ int main(int argc, char **argv) {
     uint8_t hashseed[16];
     getRandomBytes(hashseed,sizeof(hashseed));
     dictSetHashFunctionSeed(hashseed);
+    // 判断当前运行的是否为哨兵实例
+    // 命令行启动哨兵实例的两种方式，一种是直接运行 redis-sentinel 命令，另一种是运行 redis-server 命令，但是带有“--entinel”参数
+    // redis-sentinel sentinel.conf文件路径
+    // redis-server sentinel.conf文件路径 --sentinel
     server.sentinel_mode = checkForSentinelMode(argc,argv);
     // 为各种参数设置默认值
     // 参数的默认值统一定义在server.h文件中，都是以CONFIG_DEFAULT开头的宏定义变量
@@ -5445,8 +5451,11 @@ int main(int argc, char **argv) {
     //判断server是否设置为哨兵模式
     if (server.sentinel_mode) {
         //初始化哨兵的配置
+        // 将当前server的端口号，改为哨兵实例专用的端口号 REDIS_SENTINEL_PORT。这是个宏定义，它对应的默认值是 26379。
+        // 另外，这个函数还会把server的protected_mode设置为0，即允许外部连接哨兵实例，而不是只能通过127.0.0.1本地连接 server。
         initSentinelConfig();
         //初始化哨兵模式
+        // 替换 server 能执行的命令表
         initSentinel();
     }
 
@@ -5518,6 +5527,7 @@ int main(int argc, char **argv) {
             }
             j++;
         }
+        // 检查sentinel的配置文件
         if (server.sentinel_mode && configfile && *configfile == '-') {
             serverLog(LL_WARNING,
                 "Sentinel config from STDIN not allowed.");
@@ -5612,6 +5622,7 @@ int main(int argc, char **argv) {
         }
     } else {
         InitServerLast();
+        // 启动哨兵实例
         sentinelIsRunning();
         if (server.supervised_mode == SUPERVISED_SYSTEMD) {
             redisCommunicateSystemd("STATUS=Ready to accept connections\n");
