@@ -1785,10 +1785,12 @@ void checkChildrenDone(void) {
     int statloc;
     pid_t pid;
 
+    //非阻塞 等待进程结束
     if ((pid = wait3(&statloc,WNOHANG,NULL)) != 0) {
         int exitcode = WEXITSTATUS(statloc);
         int bysignal = 0;
 
+        //确定是不是信号量退出的
         if (WIFSIGNALED(statloc)) bysignal = WTERMSIG(statloc);
 
         /* sigKillChildHandler catches the signal and calls exit(), but we
@@ -1801,6 +1803,7 @@ void checkChildrenDone(void) {
             exitcode = 1;
         }
 
+        // 失败了
         if (pid == -1) {
             serverLog(LL_WARNING,"wait3() returned an error: %s. "
                 "rdb_child_pid = %d, aof_child_pid = %d, module_child_pid = %d",
@@ -1808,9 +1811,11 @@ void checkChildrenDone(void) {
                 (int) server.rdb_child_pid,
                 (int) server.aof_child_pid,
                 (int) server.module_child_pid);
+            // 如果是一个rdb子进程
         } else if (pid == server.rdb_child_pid) {
             backgroundSaveDoneHandler(exitcode,bysignal);
             if (!bysignal && exitcode == 0) receiveChildInfo();
+            // 如果是一个aof子进程
         } else if (pid == server.aof_child_pid) {
             backgroundRewriteDoneHandler(exitcode,bysignal);
             if (!bysignal && exitcode == 0) receiveChildInfo();
@@ -1974,6 +1979,8 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Start a scheduled AOF rewrite if this was requested by the user while
      * a BGSAVE was in progress. */
+    //如果没有RDB子进程，也没有AOF重写子进程，并且AOF重写被设置为待调度执行，
+    // 那么调用rewriteAppendOnlyFileBackground函数进行AOF重写
     if (!hasActiveChildProcess() &&
         server.aof_rewrite_scheduled)
     {
@@ -2011,14 +2018,22 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         }
 
         /* Trigger an AOF rewrite if needed. */
+        //如果AOF功能启用、
+        // 没有RDB子进程和AOF重写子进程在执行、
+        // AOF文件大小比例设定了阈值，
+        // 以及AOF文件大小绝对值超出了阈值，那么，进一步判断AOF文件大小比例是否超出阈值
         if (server.aof_state == AOF_ON &&
             !hasActiveChildProcess() &&
             server.aof_rewrite_perc &&
+            // auto-aof-rewrite-min-size：AOF 文件大小绝对值的最小值，默认为 64MB
             server.aof_current_size > server.aof_rewrite_min_size)
         {
+            //计算AOF文件当前大小超出基础大小的比例
             long long base = server.aof_rewrite_base_size ?
                 server.aof_rewrite_base_size : 1;
             long long growth = (server.aof_current_size*100/base) - 100;
+            //如果AOF文件当前大小超出基础大小的比例已经超出预设阈值，那么执行AOF重写
+            // 对应auto-aof-rewrite-percentage配置值：AOF 文件大小超出基础大小的比例，默认值为 100%，即超出 1 倍大小
             if (growth >= server.aof_rewrite_perc) {
                 serverLog(LL_NOTICE,"Starting automatic rewriting of AOF on %lld%% growth",growth);
                 // 执行rewrite aof
