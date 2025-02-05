@@ -1410,6 +1410,8 @@ void replicationCreateMasterClient(connection *conn, int dbid) {
  * master-replica synchronization: if it fails after multiple attempts
  * the replica cannot be considered reliable and exists with an
  * error. */
+// 在主从节点的复制过程中被调用。简单来说，就是当主从节点在进行复制时，如果从节点的 AOF 选项被打开，那么在加载解析 RDB 文件时，AOF 选项就会被关闭。
+// 然后，无论从节点是否成功加载了 RDB 文件，restartAOFAfterSYNC 函数都会被调用，用来恢复被关闭的 AOF 功能。
 void restartAOFAfterSYNC() {
     unsigned int tries, max_tries = 10;
     for (tries = 0; tries < max_tries; ++tries) {
@@ -1642,7 +1644,7 @@ void readSyncBulkPayload(connection *conn) {
 
     /* We need to stop any AOF rewriting child before flusing and parsing
      * the RDB, otherwise we'll create a copy-on-write disaster. */
-    // RDB flush和parse的时候需要暂停AOF
+    // 当主从节点在进行复制时，如果从节点的 AOF 选项被打开，那么在加载解析 RDB 文件时，AOF 选项就会被关闭
     if (server.aof_state != AOF_OFF) stopAppendOnly();
 
     /* When diskless RDB loading is used by replicas, it may be configured

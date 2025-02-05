@@ -1285,7 +1285,9 @@ struct redisServer {
     int aof_flush_sleep;            /* Micros to sleep before flush. (used by tests) */
     int aof_rewrite_scheduled;      /* Rewrite once BGSAVE terminates. */
     pid_t aof_child_pid;            /* PID if rewriting process */
+    // AOF重写缓冲链表，由多个缓冲区（一个aofrwblock是一个缓冲区）组成
     list *aof_rewrite_buf_blocks;   /* Hold changes during an AOF rewrite. */
+    // aof缓冲区
     sds aof_buf;      /* AOF buffer, written before entering the event loop */
     int aof_fd;       /* File descriptor of currently selected AOF file */
     int aof_selected_db; /* Currently selected DB in AOF */
