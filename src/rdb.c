@@ -1365,6 +1365,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     rio rdb;
     int error = 0;
 
+    // 先写临时文件，rdb完整写入后再rename为dump.rdb 保证原子写入文件
     snprintf(tmpfile,256,"temp-%d.rdb", (int) getpid());
     fp = fopen(tmpfile,"w");
     if (!fp) {
@@ -1384,7 +1385,7 @@ int rdbSave(char *filename, rdbSaveInfo *rsi) {
     if (server.rdb_save_incremental_fsync)
         rioSetAutoSync(&rdb,REDIS_AUTOSYNC_BYTES);
 
-    // RDB 文件的格式和生成过程
+    // RDB文件的格式和生成过程
     if (rdbSaveRio(&rdb,&error,RDBFLAGS_NONE,rsi) == C_ERR) {
         errno = error;
         goto werr;

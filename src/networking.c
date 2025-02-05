@@ -3481,7 +3481,7 @@ int handleClientsWithPendingReadsUsingThreads(void) {
     // 从1 开始的 0的是主线程自己
     for (int j = 1; j < server.io_threads_num; j++) {
         int count = listLength(io_threads_list[j]);
-        // 给每个 I/O 线程的计数器设置分配的任务数量
+        // 给每个 I/O 线程的计数器设置分配的任务数量(根据线程队列大小进行分配)
         io_threads_pending[j] = count;
     }
 
