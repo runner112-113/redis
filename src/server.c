@@ -2075,6 +2075,8 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     }
 
     /* Run the Sentinel timer if we are in sentinel mode. */
+    //如果当前运行的是哨兵，则运行哨兵的时间事件处理函数
+    // 可能会触发哨兵Leader选举
     if (server.sentinel_mode) sentinelTimer();
 
     /* Cleanup expired MIGRATE cached sockets. */
@@ -3853,7 +3855,7 @@ int processCommand(client *c) {
         queueMultiCommand(c);
         addReply(c,shared.queued);
     } else {
-        // 未开启事务 直接执行
+        // 未开启事务 直接执行,设置了flags为CMD_CALL_FULL
         call(c,CMD_CALL_FULL);
         c->woff = server.master_repl_offset;
         if (listLength(server.ready_keys))
