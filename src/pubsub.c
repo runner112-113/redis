@@ -435,6 +435,7 @@ void publishCommand(client *c) {
     int receivers = pubsubPublishMessage(c->argv[1],c->argv[2]);
     //如果Redis启用了cluster，那么在集群中发送publish命令
     if (server.cluster_enabled)
+        // 广播到整个集群
         clusterPropagatePublish(c->argv[1],c->argv[2]);
     else
         forceCommandPropagation(c,PROPAGATE_REPL);
