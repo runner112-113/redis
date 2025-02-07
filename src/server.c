@@ -2971,6 +2971,8 @@ void initServer(void) {
         listSetFreeMethod(server.db[j].defrag_later,(void (*)(void*))sdsfree);
     }
     evictionPoolAlloc(); /* Initialize the LRU keys pool. */
+    // 哈希表是keylistDictType类型时，它保存的哈希项的 value 就是一个列表
+    // 一个频道可以有多个订阅者
     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
     server.pubsub_patterns = listCreate();
     server.pubsub_patterns_dict = dictCreate(&keylistDictType,NULL);

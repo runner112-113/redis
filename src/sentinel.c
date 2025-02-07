@@ -664,8 +664,8 @@ int sentinelAddrIsEqual(sentinelAddr *a, sentinelAddr *b) {
  * @param level  当前的日志级别
  * @param type   发送事件信息所用的订阅频道
  * @param ri     对应交互的主节点
- * @param fmt    发送的消息内容
- * @param ...
+ * @param fmt
+ * @param ...   发送的消息内容
  */
 void sentinelEvent(int level, char *type, sentinelRedisInstance *ri,
                    const char *fmt, ...) {
@@ -2163,6 +2163,8 @@ void sentinelReconnectInstance(sentinelRedisInstance *ri) {
             sentinelSendAuthIfNeeded(ri,link->pc);
             sentinelSetClientName(ri,link->pc,"pubsub");
             /* Now we subscribe to the Sentinels "Hello" channel. */
+            // 向主节点发送subscribe命令，订阅"__sentinel__:hello"频道
+            // 当在"__sentinel__:hello"频道上收到 hello 消息后，哨兵会回调 sentinelReceiveHelloMessages 函数来进行处理
             retval = redisAsyncCommand(link->pc,
                 sentinelReceiveHelloMessages, ri, "%s %s",
                 sentinelInstanceMapCommand(ri,"SUBSCRIBE"),
@@ -2534,6 +2536,9 @@ void sentinelPublishReplyCallback(redisAsyncContext *c, void *reply, void *privd
  *
  * If the master name specified in the message is not known, the message is
  * discarded. */
+// 对于 sentinelProcessHelloMessage 函数来说，它主要是从hello消息中获得发布hello消息的哨兵实例的基本信息，比如 IP、端口号、quorum 阈值等。
+// 如果当前哨兵并没有记录发布 hello 消息的哨兵实例的信息，那么，sentinelProcessHelloMessage函数就会调用createSentinelRedisInstance函数，
+// 来创建发布hello消息的哨兵实例的信息记录，这样一来，当前哨兵就拥有了其他哨兵实例的信息了
 void sentinelProcessHelloMessage(char *hello, int hello_len) {
     /* Format is composed of 8 tokens:
      * 0=ip,1=port,2=runid,3=current_epoch,4=master_name,
@@ -2663,6 +2668,7 @@ void sentinelReceiveHelloMessages(redisAsyncContext *c, void *reply, void *privd
     /* We are not interested in meeting ourselves */
     if (strstr(r->element[2]->str,sentinel.myid) != NULL) return;
 
+    // 处理hello消息
     sentinelProcessHelloMessage(r->element[2]->str, r->element[2]->len);
 }
 
@@ -2702,14 +2708,18 @@ int sentinelSendHello(sentinelRedisInstance *ri) {
     else announce_port = server.port;
 
     /* Format and send the Hello message. */
+    //hello消息包含的内容
     snprintf(payload,sizeof(payload),
+             //当前哨兵实例的信息，包括ip、端口号、ID和当前纪元
         "%s,%d,%s,%llu," /* Info about this sentinel. */
+        //当前主节点的信息，包括名称、IP、端口号和纪元
         "%s,%s,%d,%llu", /* Info about current master. */
         announce_ip, announce_port, sentinel.myid,
         (unsigned long long) sentinel.current_epoch,
         /* --- */
         master->name,master_addr->ip,master_addr->port,
         (unsigned long long) master->config_epoch);
+    //向主节点的hello频道发布hello消息
     retval = redisAsyncCommand(ri->link->cc,
         sentinelPublishReplyCallback, ri, "%s %s %s",
         sentinelInstanceMapCommand(ri,"PUBLISH"),
@@ -2835,6 +2845,8 @@ void sentinelSendPeriodicCommands(sentinelRedisInstance *ri) {
     }
 
     /* PUBLISH hello messages to all the three kinds of instances. */
+    // 向主节点的"__sentinel__:hello"频道发布 hello 消息。
+    // 在它发送的 hello 消息中，包含了发布 hello 消息的哨兵实例的 IP、端口号、ID 和当前的纪元，以及该哨兵监听的主节点的名称、IP、端口号和纪元信息
     if ((now - ri->last_pub_time) > SENTINEL_PUBLISH_PERIOD) {
         sentinelSendHello(ri);
     }
@@ -4588,6 +4600,7 @@ void sentinelHandleRedisInstance(sentinelRedisInstance *ri) {
     // 判断哨兵实例和主节点间连接是否正常，如果发生了断连情况，它会重新建立哨兵和主节点的连接
     sentinelReconnectInstance(ri);
     // 向实例发送PING、INFO等命令
+    // 向主节点的"__sentinel__:hello"频道发布 hello 消息
     sentinelSendPeriodicCommands(ri);
 
     /* ============== ACTING HALF ============= */
