@@ -152,6 +152,7 @@ typedef struct clusterState {
     dict *nodes_black_list; /* Nodes we don't re-add for a few seconds. */
     clusterNode *migrating_slots_to[CLUSTER_SLOTS];
     clusterNode *importing_slots_from[CLUSTER_SLOTS];
+    // 每个slot对应的clusterNode映射集合
     clusterNode *slots[CLUSTER_SLOTS];
     uint64_t slots_keys_count[CLUSTER_SLOTS];
     rax *slots_to_keys;

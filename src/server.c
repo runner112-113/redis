@@ -3687,6 +3687,8 @@ int processCommand(client *c) {
      * However we don't perform the redirection if:
      * 1) The sender of this command is our master.
      * 2) The command has no key arguments. */
+    //当前Redis server启用了Redis Cluster模式；
+    // 收到的命令不是来自于当前借的主节点；收到的命令包含了key参数，或者命令是EXEC
     if (server.cluster_enabled &&
         !(c->flags & CLIENT_MASTER) &&
         !(c->flags & CLIENT_LUA &&
@@ -3696,14 +3698,17 @@ int processCommand(client *c) {
     {
         int hashslot;
         int error_code;
+        // 查询当前收到的命令能在哪个集群节点上进行处理
         clusterNode *n = getNodeByQuery(c,c->cmd,c->argv,c->argc,
                                         &hashslot,&error_code);
+        // 返回的处理结点为null或者不是当前节点，则重定向 MOVED
         if (n == NULL || n != server.cluster->myself) {
             if (c->cmd->proc == execCommand) {
                 discardTransaction(c);
             } else {
                 flagTransaction(c);
             }
+            //实际执行请求重定向
             clusterRedirectClient(c,n,hashslot,error_code);
             return C_OK;
         }
