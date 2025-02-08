@@ -2071,6 +2071,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Run the Redis Cluster cron. */
     run_with_period(100) {
+        //每100ms调用一次clusterCron函数
         if (server.cluster_enabled) clusterCron();
     }
 
