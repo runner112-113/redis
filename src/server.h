@@ -633,7 +633,9 @@ typedef struct RedisModuleDigest {
 #define OBJ_ENCODING_STREAM 10 /* Encoded as a radix tree of listpacks */
 
 #define LRU_BITS 24
+//LRU时钟的最大值
 #define LRU_CLOCK_MAX ((1<<LRU_BITS)-1) /* Max value of obj->lru */
+//以毫秒为单位的LRU时钟精度
 #define LRU_CLOCK_RESOLUTION 1000 /* LRU clock resolution in ms */
 
 #define OBJ_SHARED_REFCOUNT INT_MAX     /* Global object never destroyed. */
@@ -646,6 +648,7 @@ typedef struct redisObject {
     unsigned encoding:4;
     // 对象最后一次被命令程序访问的时间
     // redisObject的LRU时间，LRU_BITS为24个bits
+    // 每个键值对都会把它最近一次被访问的时间戳，记录在lru变量当中
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
@@ -1131,6 +1134,7 @@ struct redisServer {
     dict *commands;             /* Command table */
     dict *orig_commands;        /* Command table before command renaming. */
     aeEventLoop *el;
+    // 全局LRU时钟
     _Atomic unsigned int lruclock; /* Clock for LRU eviction */
     volatile sig_atomic_t shutdown_asap; /* SHUTDOWN needed ASAP */
     int activerehashing;        /* Incremental rehash in serverCron() */
@@ -1193,6 +1197,7 @@ struct redisServer {
     long long events_processed_while_blocked; /* processEventsWhileBlocked() */
 
     /* RDB / AOF loading information */
+    // 正在通过RDB或AOF从磁盘加载数据
     volatile sig_atomic_t loading; /* We are loading data from disk if true */
     off_t loading_total_bytes;
     off_t loading_loaded_bytes;
@@ -1439,7 +1444,10 @@ struct redisServer {
     int get_ack_from_slaves;            /* If true we send REPLCONF GETACK. */
     /* Limits */
     unsigned int maxclients;            /* Max number of simultaneous clients */
+    // Redis server 可以使用的最大内存容量，一旦 server 使用的实际内存量超出该阈值时，
+    // server 就会根据 maxmemory-policy 配置项定义的策略，执行内存淘汰操作；
     unsigned long long maxmemory;   /* Max number of memory bytes to use */
+    // 内存淘汰策略，主要包括近似 LRU 算法、LFU 算法、按 TTL 值淘汰和随机淘汰等几种算法
     int maxmemory_policy;           /* Policy for key eviction */
     // lru淘汰的采样数
     int maxmemory_samples;          /* Precision of random sampling */

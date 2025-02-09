@@ -1900,6 +1900,8 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
      *
      * Note that you can change the resolution altering the
      * LRU_CLOCK_RESOLUTION define. */
+    //默认情况下，每100毫秒调用getLRUClock函数更新一次全局LRU时钟值
+    // 1000 / hz = 100 , hz默认为10
     server.lruclock = getLRUClock();
 
     /* Record the max memory used since the server was started. */
@@ -2430,6 +2432,7 @@ void initServerConfig(void) {
     server.next_client_id = 1; /* Client IDs, start from 1 .*/
     server.loading_process_events_interval_bytes = (1024*1024*2);
 
+    //调用getLRUClock函数计算全局LRU时钟值，精度为1秒
     server.lruclock = getLRUClock();
     resetServerSaveParams();
 
@@ -3710,6 +3713,8 @@ int processCommand(client *c) {
      * the event loop since there is a busy Lua script running in timeout
      * condition, to avoid mixing the propagation of scripts with the
      * propagation of DELs due to eviction. */
+    // 1.设置了 maxmemory 配置项为非 0 值 并且
+    // 2.Lua 脚本没有在超时运行
     if (server.maxmemory && !server.lua_timedout) {
         int out_of_memory = freeMemoryIfNeededAndSafe() == C_ERR;
         /* freeMemoryIfNeeded may flush slave output buffers. This may result
