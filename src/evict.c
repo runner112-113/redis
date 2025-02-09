@@ -321,11 +321,17 @@ unsigned long LFUTimeElapsed(unsigned long ldt) {
 /* Logarithmically increment a counter. The greater is the current counter value
  * the less likely is that it gets really implemented. Saturate it at 255. */
 uint8_t LFULogIncr(uint8_t counter) {
+    //访问次数已经等于255，直接返回255
     if (counter == 255) return 255;
+    //计算一个随机数
     double r = (double)rand()/RAND_MAX;
+    //计算当前访问次数和初始值的差值
     double baseval = counter - LFU_INIT_VAL;
+    //差值小于0，则将其设为0
     if (baseval < 0) baseval = 0;
+    //根据baseval和lfu_log_factor计算阈值p
     double p = 1.0/(baseval*server.lfu_log_factor+1);
+    //概率值小于阈值时
     if (r < p) counter++;
     return counter;
 }
@@ -341,11 +347,17 @@ uint8_t LFULogIncr(uint8_t counter) {
  * to fit: as we check for the candidate, we incrementally decrement the
  * counter of the scanned objects if needed. */
 unsigned long LFUDecrAndReturn(robj *o) {
+    //获取当前键值对的上一次访问时间
     unsigned long ldt = o->lru >> 8;
+    //获取当前的访问次数
     unsigned long counter = o->lru & 255;
+    //计算衰减大小
     unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;
+    //如果衰减大小不为0
     if (num_periods)
+        //如果衰减大小小于当前访问次数，那么，衰减后的访问次数是当前访问次数减去衰减大小；否则，衰减后的访问次数等于0
         counter = (num_periods > counter) ? 0 : counter - num_periods;
+    //如果衰减大小为0，则返回原来的访问次数
     return counter;
 }
 

@@ -649,6 +649,8 @@ typedef struct redisObject {
     // 对象最后一次被命令程序访问的时间
     // redisObject的LRU时间，LRU_BITS为24个bits
     // 每个键值对都会把它最近一次被访问的时间戳，记录在lru变量当中
+    // 当lru变量用来记录LFU算法的所需信息时，它会用 24 bits 中的低 8 bits 作为计数器，来记录键值对的访问次数，
+    // 同时它会用 24 bits 中的高 16 bits，记录访问的时间戳
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
