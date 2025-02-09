@@ -2073,10 +2073,13 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Run the Redis Cluster cron. */
     run_with_period(100) {
+        //每100ms调用一次clusterCron函数
         if (server.cluster_enabled) clusterCron();
     }
 
     /* Run the Sentinel timer if we are in sentinel mode. */
+    //如果当前运行的是哨兵，则运行哨兵的时间事件处理函数
+    // 可能会触发哨兵Leader选举
     if (server.sentinel_mode) sentinelTimer();
 
     /* Cleanup expired MIGRATE cached sockets. */
@@ -2972,6 +2975,8 @@ void initServer(void) {
         listSetFreeMethod(server.db[j].defrag_later,(void (*)(void*))sdsfree);
     }
     evictionPoolAlloc(); /* Initialize the LRU keys pool. */
+    // 哈希表是keylistDictType类型时，它保存的哈希项的 value 就是一个列表
+    // 一个频道可以有多个订阅者
     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
     server.pubsub_patterns = listCreate();
     server.pubsub_patterns_dict = dictCreate(&keylistDictType,NULL);
@@ -3685,6 +3690,8 @@ int processCommand(client *c) {
      * However we don't perform the redirection if:
      * 1) The sender of this command is our master.
      * 2) The command has no key arguments. */
+    //当前Redis server启用了Redis Cluster模式；
+    // 收到的命令不是来自于当前借的主节点；收到的命令包含了key参数，或者命令是EXEC
     if (server.cluster_enabled &&
         !(c->flags & CLIENT_MASTER) &&
         !(c->flags & CLIENT_LUA &&
@@ -3694,14 +3701,17 @@ int processCommand(client *c) {
     {
         int hashslot;
         int error_code;
+        // 查询当前收到的命令能在哪个集群节点上进行处理
         clusterNode *n = getNodeByQuery(c,c->cmd,c->argv,c->argc,
                                         &hashslot,&error_code);
+        // 返回的处理结点为null或者不是当前节点，则重定向 MOVED
         if (n == NULL || n != server.cluster->myself) {
             if (c->cmd->proc == execCommand) {
                 discardTransaction(c);
             } else {
                 flagTransaction(c);
             }
+            //实际执行请求重定向
             clusterRedirectClient(c,n,hashslot,error_code);
             return C_OK;
         }
@@ -3858,7 +3868,7 @@ int processCommand(client *c) {
         queueMultiCommand(c);
         addReply(c,shared.queued);
     } else {
-        // 未开启事务 直接执行
+        // 未开启事务 直接执行,设置了flags为CMD_CALL_FULL
         call(c,CMD_CALL_FULL);
         c->woff = server.master_repl_offset;
         if (listLength(server.ready_keys))

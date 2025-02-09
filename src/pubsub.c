@@ -80,6 +80,7 @@ void addReplyPubsubSubscribed(client *c, robj *channel) {
         addReplyPushLen(c,3);
     addReply(c,shared.subscribebulk);
     addReplyBulk(c,channel);
+    //给订阅者返回成功订阅的频道数量
     addReplyLongLong(c,clientSubscriptionsCount(c));
     if (!(old_flags & CLIENT_PUSHING)) c->flags &= ~CLIENT_PUSHING;
 }
@@ -170,18 +171,25 @@ int pubsubSubscribeChannel(client *c, robj *channel) {
     int retval = 0;
 
     /* Add the channel to the client -> channels hash table */
+    // 添加到client对应订阅的channel集合中
     if (dictAdd(c->pubsub_channels,channel,NULL) == DICT_OK) {
         retval = 1;
         incrRefCount(channel);
         /* Add the client to the channel -> list of clients hash table */
+        //在pubsub_channels哈希表中查找频道
         de = dictFind(server.pubsub_channels,channel);
+        //如果频道不存在
         if (de == NULL) {
+            //创建订阅者对应的列表
             clients = listCreate();
+            //新插入频道对应的哈希项
             dictAdd(server.pubsub_channels,channel,clients);
             incrRefCount(channel);
         } else {
+            //频道已存在，获取订阅者列表
             clients = dictGetVal(de);
         }
+        //将订阅者加入到订阅者列表
         listAddNodeTail(clients,c);
     }
     /* Notify the client */
@@ -333,13 +341,16 @@ int pubsubPublishMessage(robj *channel, robj *message) {
     listIter li;
 
     /* Send to clients listening for that channel */
+    //查找频道是否存在
     de = dictFind(server.pubsub_channels,channel);
+    //频道存在
     if (de) {
         list *list = dictGetVal(de);
         listNode *ln;
         listIter li;
 
         listRewind(list,&li);
+        //遍历频道对应的订阅者，向订阅者发送要发布的消息
         while ((ln = listNext(&li)) != NULL) {
             client *c = ln->value;
             addReplyPubsubMessage(c,channel,message);
@@ -374,10 +385,12 @@ int pubsubPublishMessage(robj *channel, robj *message) {
 /*-----------------------------------------------------------------------------
  * Pubsub commands implementation
  *----------------------------------------------------------------------------*/
-
+// SUBSCRIBE channel1 [channel2 ...]
+// 订阅指定频道
 void subscribeCommand(client *c) {
     int j;
 
+    // 遍历参数中的channel进行订阅
     for (j = 1; j < c->argc; j++)
         pubsubSubscribeChannel(c,c->argv[j]);
     c->flags |= CLIENT_PUBSUB;
@@ -415,12 +428,18 @@ void punsubscribeCommand(client *c) {
     if (clientSubscriptionsCount(c) == 0) c->flags &= ~CLIENT_PUBSUB;
 }
 
+// PUBLISH channel message
+// 给指定频道发送消息
 void publishCommand(client *c) {
+    //调用pubsubPublishMessage发布消息
     int receivers = pubsubPublishMessage(c->argv[1],c->argv[2]);
+    //如果Redis启用了cluster，那么在集群中发送publish命令
     if (server.cluster_enabled)
+        // 广播到整个集群
         clusterPropagatePublish(c->argv[1],c->argv[2]);
     else
         forceCommandPropagation(c,PROPAGATE_REPL);
+    //返回接收消息的订阅者数量
     addReplyLongLong(c,receivers);
 }
 
