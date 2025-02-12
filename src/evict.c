@@ -492,6 +492,7 @@ int freeMemoryIfNeeded(void) {
     if (server.maxmemory_policy == MAXMEMORY_NO_EVICTION)
         goto cant_free; /* We need to free memory, but policy forbids. */
 
+    //执行循环流程，删除淘汰数据
     while (mem_freed < mem_tofree) {
         int j, k, i;
         static unsigned int next_db = 0;
@@ -591,6 +592,7 @@ int freeMemoryIfNeeded(void) {
             db = server.db+bestdbid;
             //将删除key的信息传递给从库和AOF文件
             robj *keyobj = createStringObject(bestkey,sdslen(bestkey));
+            // 根据lazyfree_lazy_eviction来决定删除命令时unlink还是del
             propagateExpire(db,keyobj,server.lazyfree_lazy_eviction);
             /* We compute the amount of memory freed by db*Delete() alone.
              * It is possible that actually the memory needed to propagate
@@ -602,17 +604,21 @@ int freeMemoryIfNeeded(void) {
              *
              * AOF and Output buffer memory will be freed eventually so
              * we only care about memory used by the key space. */
+            //获取当前内存使用量
             delta = (long long) zmalloc_used_memory();
             latencyStartMonitor(eviction_latency);
             //如果配置了惰性删除，则进行异步删除
             if (server.lazyfree_lazy_eviction)
+                // 异步删除
                 dbAsyncDelete(db,keyobj);
             else
                 //否则进行同步删除
                 dbSyncDelete(db,keyobj);
             latencyEndMonitor(eviction_latency);
             latencyAddSampleIfNeeded("eviction-del",eviction_latency);
+            //根据当前内存使用量计算数据删除前后释放的内存量
             delta -= (long long) zmalloc_used_memory();
+            //更新已释放的内存量
             mem_freed += delta;
             server.stat_evictedkeys++;
             signalModifiedKey(NULL,db,keyobj);
@@ -634,7 +640,9 @@ int freeMemoryIfNeeded(void) {
              * memory, since the "mem_freed" amount is computed only
              * across the dbAsyncDelete() call, while the thread can
              * release the memory all the time. */
+            //如果使用了惰性删除，并且每删除16个key后，统计下当前内存使用量
             if (server.lazyfree_lazy_eviction && !(keys_freed % 16)) {
+                //计算当前内存使用量是否不超过最大内存容量
                 if (getMaxmemoryState(NULL,NULL,NULL,NULL) == C_OK) {
                     /* Let's satisfy our stop condition. */
                     mem_freed = mem_tofree;

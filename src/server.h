@@ -1548,9 +1548,13 @@ struct redisServer {
     int lua_always_replicate_commands; /* Default replication type. */
     int lua_oom;          /* OOM detected when script start? */
     /* Lazy free */
+    // 对应缓存淘汰时的数据删除场景
     int lazyfree_lazy_eviction;
+    // 对应过期 key 的删除场景
     int lazyfree_lazy_expire;
+    // 对应会隐式进行删除操作的 server 命令执行场景
     int lazyfree_lazy_server_del;
+    // 打开该选项后执行 DEL 就与 UNLINK 效果一样了
     int lazyfree_lazy_user_del;
     /* Latency monitor */
     long long latency_monitor_threshold;
