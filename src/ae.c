@@ -375,7 +375,8 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
 
             id = te->id;
             te->refcount++;
-            //调用注册的回调函数处理
+            //调用注册的回调函数处理,会根据返回值设置下次执行时间
+            // 是通过配置的hz来计算出来的，retval = 1000 / hz
             retval = te->timeProc(eventLoop, id, te->clientData);
             te->refcount--;
             processed++;

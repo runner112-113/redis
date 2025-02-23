@@ -51,6 +51,7 @@ int keyIsExpired(redisDb *db, robj *key);
  * Firstly, decrement the counter if the decrement time is reached.
  * Then logarithmically increment the counter, and update the access time. */
 void updateLFU(robj *val) {
+    // 对键值对的访问次数进行衰减操作
     unsigned long counter = LFUDecrAndReturn(val);
     counter = LFULogIncr(counter);
     val->lru = (LFUGetTimeInMinutes()<<8) | counter;
@@ -69,8 +70,10 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
          * a copy on write madness. */
         if (!hasActiveChildProcess() && !(flags & LOOKUP_NOTOUCH)){
             if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
+                //如果使用了LFU策略，更新LFU计数值
                 updateLFU(val);
             } else {
+                //否则，调用LRU_CLOCK函数获取全局LRU时钟值
                 val->lru = LRU_CLOCK();
             }
         }
@@ -312,7 +315,9 @@ robj *dbRandomKey(redisDb *db) {
 int dbSyncDelete(redisDb *db, robj *key) {
     /* Deleting an entry from the expires dict will not free the sds of
      * the key, because it is shared with the main dictionary. */
+    // 在过期 key 的哈希表中删除被淘汰的键值对
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+    // 在全局哈希表中删除被淘汰的键值对
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
         if (server.cluster_enabled) slotToKeyDel(key->ptr);
         return 1;
@@ -1327,13 +1332,17 @@ long long getExpire(redisDb *db, robj *key) {
 void propagateExpire(redisDb *db, robj *key, int lazy) {
     robj *argv[2];
 
+    //如果server启用了lazyfree-lazy-evict，那么argv[0]的值为unlink对象，否则为del对象 argv[1] = key; //被淘汰的key对象 ...}
     argv[0] = lazy ? shared.unlink : shared.del;
+    //被淘汰的key对象
     argv[1] = key;
     incrRefCount(argv[0]);
     incrRefCount(argv[1]);
 
+    //如果启用了AOF日志，则将删除操作写入AOF文件
     if (server.aof_state != AOF_OFF)
         feedAppendOnlyFile(server.delCommand,db->id,argv,2);
+    //将删除操作同步给从节点
     replicationFeedSlaves(server.slaves,db->id,argv,2);
 
     decrRefCount(argv[0]);
