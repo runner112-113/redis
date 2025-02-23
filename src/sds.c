@@ -88,7 +88,7 @@ static inline char sdsReqType(size_t string_size) {
  * \0 characters in the middle, as the length is stored in the sds header. */
 sds sdsnewlen(const void *init, size_t initlen) {
     // 指向SDS结构体的指针
-    void *sh
+    void *sh;
     // sds类型变量，即char*字符数组
     sds s;
     char type = sdsReqType(initlen);
@@ -224,7 +224,7 @@ sds sdsMakeRoomFor(sds s, size_t addlen) {
     reqlen = newlen = (len+addlen);
     assert(newlen > len);   /* Catch size_t overflow */
     // SDS 扩容，会多申请一些内存（小于 1MB 翻倍扩容，大于 1MB 按 1MB 扩容）
-    if (newlen < SDS_MAX_PREALLOC)ss
+    if (newlen < SDS_MAX_PREALLOC)
         newlen *= 2;
     else
         newlen += SDS_MAX_PREALLOC;
