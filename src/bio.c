@@ -167,6 +167,7 @@ void bioCreateBackgroundJob(int type, void *arg1, void *arg2, void *arg3) {
     listAddNodeTail(bio_jobs[type],job);
     //将对应任务列表上等待处理的任务个数加1
     bio_pending[type]++;
+    // 唤醒条件变量
     pthread_cond_signal(&bio_newjob_cond[type]);
     pthread_mutex_unlock(&bio_mutex[type]);
 }
